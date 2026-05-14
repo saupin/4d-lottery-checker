@@ -33,7 +33,12 @@
 <div class="tab-content mb-5">
   {% for tab_key, tab_label in [('all','All Lotteries'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
   <div class="tab-pane fade {% if tab_key == 'all' %}show active{% endif %}" id="ptab-{{ tab_key }}">
-    <div class="predict-grid mt-3">
+    <div class="d-flex justify-content-end mt-3 mb-1">
+      <button class="btn-add-sim add-all-btn"
+              style="width:auto;padding:.3rem .9rem;font-size:.7rem"
+              onclick="addAllToSim('{{ tab_key }}')">+ Track All 20</button>
+    </div>
+    <div class="predict-grid">
       {% for r in top20s[tab_key] %}
       <div class="predict-card">
         <span class="predict-rank">#{{ r.rank }}</span>
@@ -100,21 +105,33 @@
 
   function addToSim(num, lottery, btn) {
     const list = simLoad();
-    if (list.some(t => t.num === num && t.lottery === lottery)) {
-      btn.textContent = '✓ In list'; btn.classList.add('already'); return;
+    const idx  = list.findIndex(t => t.num === num && t.lottery === lottery);
+    if (idx !== -1) {
+      list.splice(idx, 1);
+      localStorage.setItem(SIM_KEY, JSON.stringify(list));
+      btn.textContent = '+ Track';
+      btn.classList.remove('added', 'already');
+      return;
     }
     const today = new Date().toISOString().slice(0, 10);
     list.unshift({ num, lottery, tries: 10, date: today });
     localStorage.setItem(SIM_KEY, JSON.stringify(list));
-    btn.textContent = '✓ Added'; btn.classList.add('added');
+    btn.textContent = '✓ Tracked';
+    btn.classList.add('added');
+  }
+
+  function addAllToSim(tabKey) {
+    document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`).forEach(btn => {
+      if (!btn.classList.contains('added') && !btn.classList.contains('already')) {
+        btn.click();
+      }
+    });
   }
 
   function markTracked() {
     simLoad().forEach(t => {
       const btn = document.getElementById(`asim-${t.lottery}-${t.num}`);
-      if (btn && !btn.classList.contains('added')) {
-        btn.textContent = '✓ In list'; btn.classList.add('already');
-      }
+      if (btn) { btn.textContent = '✓ Tracked'; btn.classList.add('already'); }
     });
   }
   document.addEventListener('DOMContentLoaded', markTracked);
