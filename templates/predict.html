@@ -124,12 +124,6 @@
       if (!res.ok) { showPredictError(data.error || 'Score failed.'); return; }
 
       const colour = data.colour;
-      const factors = [
-        { name: 'Positional Probability (25%)', val: data.pos_norm },
-        { name: 'Historical Frequency (35%)',   val: data.hist_norm },
-        { name: 'Recency (25%)',                val: data.recency_norm },
-        { name: 'Gap / Due (15%)',              val: data.gap_norm },
-      ];
 
       const seenLine = data.last_seen_fmt === 'Never'
         ? `<span style="color:#64748b">Never appeared as a top-3 prize in ${LOTTERY_LABELS[selectedLottery]}</span>`
