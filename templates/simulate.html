@@ -1,61 +1,54 @@
 {% extends "base.html" %}
 
-{% block title %}4D Lottery — Simulation{% endblock %}
+{% block title %}4D Lottery — My Numbers{% endblock %}
 
 {% block header %}
-  <h1>&#127922; Lottery Simulation</h1>
-  <p>Monte Carlo simulation based on historical draw patterns &mdash; track numbers and check them against future real draws</p>
+  <h1>&#127919; My Numbers</h1>
+  <p>Save your lucky numbers and check them against real draw results &mdash; next draw: <strong style="color:#f5c518">{{ next_draw }}</strong></p>
 {% endblock %}
 
 {% block content %}
 <div class="row g-4 justify-content-center">
 
-  <!-- Input column -->
+  <!-- Add number column -->
   <div class="col-lg-5">
     <div class="search-card">
-
-      <label class="mb-2 d-block">Your 4-digit number</label>
-      <input id="simNumber" class="number-input mb-3"
+      <label class="mb-2 d-block">Add a 4-digit number to track</label>
+      <input id="trackInput" class="number-input mb-3"
              type="text" inputmode="numeric" pattern="\d{4}"
              maxlength="4" placeholder="0000" autocomplete="off" />
 
-      <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">Number of simulated draws</label>
-      <div class="d-flex gap-2 flex-wrap mb-3">
-        {% for t, lbl in [(100,'100'),(1000,'1,000'),(10000,'10,000'),(100000,'100,000')] %}
-        <span class="filter-pill {% if t == 1000 %}active{% endif %}"
-              id="try-{{ t }}" onclick="selectTries({{ t }})">{{ lbl }}</span>
-        {% endfor %}
-      </div>
-
       <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">Lottery</label>
       <div class="d-flex gap-2 flex-wrap mb-3">
-        {% for key, lbl in [('all','All'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
+        {% for key, lbl in [('all','All Lotteries'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
         <span class="filter-pill {% if key == 'all' %}active{% endif %}"
-              id="slim-{{ key }}" onclick="selectSimLot('{{ key }}')">{{ lbl }}</span>
+              id="tl-{{ key }}" onclick="selectLot('{{ key }}')">{{ lbl }}</span>
         {% endfor %}
       </div>
 
       <div class="d-flex gap-2">
-        <button class="btn-search flex-grow-1" onclick="runSimulation()">Run Simulation</button>
-        <button class="btn-clear" onclick="clearSim()" title="Clear">&#10005;</button>
+        <button class="btn-search flex-grow-1" onclick="addNumber()">Add Number</button>
+        <button class="btn-clear" onclick="clearInput()" title="Clear">&#10005;</button>
       </div>
+      <div id="add-msg" class="mt-2" style="font-size:.8rem;min-height:1.2rem"></div>
     </div>
-
-    <div id="sim-spinner" class="text-center mt-3" style="display:none">
-      <div class="spin"></div>
-      <div style="font-size:.78rem;color:#8899aa;margin-top:.5rem">Running simulation…</div>
-    </div>
-
-    <div id="sim-result"></div>
   </div>
 
-  <!-- Tracked numbers column -->
-  <div class="col-lg-5">
+  <!-- My numbers list column -->
+  <div class="col-lg-6">
     <div class="section-card">
-      <div class="section-title">&#128204; Tracked Numbers</div>
-      <p class="section-sub">Numbers you saved from simulations. Click <strong style="color:#aabbcc">Check Draws</strong> to see if they won in real draws since you tracked them.</p>
-      <div id="tracked-list">
-        <div style="color:#55667a;font-size:.8rem">No numbers tracked yet. Run a simulation and click <em>Track This Number</em>.</div>
+      <div class="d-flex align-items-center justify-content-between mb-1">
+        <div class="section-title mb-0">&#128204; My Numbers</div>
+        <button class="btn-search" style="padding:.35rem 1rem;font-size:.78rem" onclick="checkAll()">
+          Check All Draws
+        </button>
+      </div>
+      <p class="section-sub">Numbers are checked against 1st, 2nd &amp; 3rd prizes in real draw results since you added them.</p>
+
+      <div id="my-numbers-list">
+        <div style="color:#55667a;font-size:.8rem;padding:.5rem 0">
+          No numbers saved yet. Add one using the form on the left.
+        </div>
       </div>
     </div>
   </div>
@@ -63,188 +56,138 @@
 </div>
 
 <script>
-  const simNum = document.getElementById('simNumber');
-  let simTries   = 1000;
-  let simLottery = 'all';
-  let lastSimNum = '';
-
-  simNum.addEventListener('input', () => { simNum.value = simNum.value.replace(/\D/g,'').slice(0,4); });
-  simNum.addEventListener('keydown', e => { if (e.key === 'Enter') runSimulation(); });
-
-  function selectTries(t) {
-    simTries = t;
-    document.querySelectorAll('[id^="try-"]').forEach(el => el.classList.remove('active'));
-    document.getElementById('try-' + t).classList.add('active');
-  }
-
-  function selectSimLot(key) {
-    simLottery = key;
-    document.querySelectorAll('[id^="slim-"]').forEach(el => el.classList.remove('active'));
-    document.getElementById('slim-' + key).classList.add('active');
-  }
-
-  function clearSim() {
-    simNum.value = '';
-    document.getElementById('sim-result').innerHTML = '';
-    lastSimNum = '';
-    simNum.focus();
-  }
+  const trackInput = document.getElementById('trackInput');
+  let selectedLot  = 'all';
 
   const LOT_LABELS = { all: 'All Lotteries', damacai: 'DAMACAI', magnum: 'MAGNUM', toto: 'SPORTSTOTO' };
+  const LOT_KEYWORDS = { damacai: 'damacai', magnum: 'magnum', toto: 'toto' };
 
-  async function runSimulation() {
-    const num = simNum.value.trim();
-    if (num.length !== 4) { showSimError('Please enter exactly 4 digits.'); return; }
-    lastSimNum = num;
+  trackInput.addEventListener('input', () => { trackInput.value = trackInput.value.replace(/\D/g,'').slice(0,4); });
+  trackInput.addEventListener('keydown', e => { if (e.key === 'Enter') addNumber(); });
 
-    document.getElementById('sim-spinner').style.display = 'block';
-    document.getElementById('sim-result').innerHTML = '';
+  function selectLot(key) {
+    selectedLot = key;
+    document.querySelectorAll('[id^="tl-"]').forEach(el => el.classList.remove('active'));
+    document.getElementById('tl-' + key).classList.add('active');
+  }
 
-    try {
-      const res  = await fetch(`/api/simulate?number=${encodeURIComponent(num)}&tries=${simTries}&lottery=${simLottery}`);
-      const data = await res.json();
-      if (!res.ok) { showSimError(data.error || 'Simulation failed.'); return; }
+  function clearInput() {
+    trackInput.value = '';
+    document.getElementById('add-msg').innerHTML = '';
+    trackInput.focus();
+  }
 
-      const luck = data.luck;
-      const luckLabel  = luck >= 2 ? '&#127808; Very Lucky'  : luck >= 1.2 ? '&#10024; Lucky'
-                       : luck >= 0.8 ? '&#9878; Average'     : luck >= 0.3 ? '&#128528; Unlucky'
-                       : '&#128128; Very Unlucky';
-      const luckColour = luck >= 2 ? '#f5c518' : luck >= 1.2 ? '#22c55e'
-                       : luck >= 0.8 ? '#06b6d4' : luck >= 0.3 ? '#f97316' : '#64748b';
+  /* ── localStorage helpers ── */
+  const STORE_KEY = '4d_my_numbers_v2';
+  function load()       { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch { return []; } }
+  function save(list)   { localStorage.setItem(STORE_KEY, JSON.stringify(list)); }
 
-      const tape = data.last_draws.map(d =>
-        `<span class="draw-dot ${d.hit ? 'draw-hit' : ''}" title="${d.drawn}"></span>`
-      ).join('');
-
-      document.getElementById('sim-result').innerHTML = `
-        <div class="check-result-card">
-          <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-3">
-            <div>
-              <div class="check-num-display">${num}</div>
-              <div style="font-size:.75rem;color:#55aacc;margin-top:.15rem">${LOT_LABELS[simLottery]}</div>
-            </div>
-            <div class="text-center">
-              <div style="font-size:2.6rem;font-weight:900;color:#f5c518;line-height:1">${data.wins}</div>
-              <div style="font-size:.75rem;color:#8899aa">wins of ${data.tries.toLocaleString()} draws</div>
-            </div>
-          </div>
-
-          <div class="sim-stats-row mb-2">
-            <div class="sim-stat">
-              <div class="sim-stat-val">${data.win_rate.toFixed(4)}%</div>
-              <div class="sim-stat-lbl">Simulated Rate</div>
-            </div>
-            <div class="sim-stat">
-              <div class="sim-stat-val">${data.expected_pct.toFixed(4)}%</div>
-              <div class="sim-stat-lbl">Expected Rate</div>
-            </div>
-            <div class="sim-stat">
-              <div class="sim-stat-val" style="color:${luckColour}">${luck}×</div>
-              <div class="sim-stat-lbl">Luck Factor</div>
-            </div>
-          </div>
-
-          <div style="font-size:.75rem;font-weight:700;color:${luckColour};margin-bottom:.8rem">${luckLabel}</div>
-
-          <div style="font-size:.7rem;color:#8899aa;margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.5px">
-            Last ${data.last_draws.length} draws &nbsp;&#9679; gold = win
-          </div>
-          <div class="draw-tape">${tape}</div>
-
-          <button class="btn-track" onclick="trackNumber('${num}','${simLottery}')">
-            &#128204; Track This Number
-          </button>
-        </div>`;
-
-    } catch(err) {
-      showSimError('Network error. Is the server running?');
-    } finally {
-      document.getElementById('sim-spinner').style.display = 'none';
+  function addNumber() {
+    const num = trackInput.value.trim();
+    if (num.length !== 4) { showMsg('Please enter exactly 4 digits.', 'danger'); return; }
+    const list = load();
+    if (list.some(t => t.num === num && t.lottery === selectedLot)) {
+      showMsg(`${num} (${LOT_LABELS[selectedLot]}) is already in your list.`, 'warning'); return;
     }
+    list.unshift({ num, lottery: selectedLot, date: today() });
+    save(list);
+    clearInput();
+    renderList();
+    showMsg(`${num} added to My Numbers.`, 'success');
   }
 
-  function showSimError(msg) {
-    document.getElementById('sim-spinner').style.display = 'none';
-    document.getElementById('sim-result').innerHTML =
-      `<div class="alert alert-danger alert-result mt-3">${msg}</div>`;
+  function removeNumber(num, lottery) {
+    save(load().filter(t => !(t.num === num && t.lottery === lottery)));
+    renderList();
   }
 
-  /* ── Tracked numbers (localStorage) ── */
-  const STORE_KEY = '4d_tracked_numbers';
+  function today() { return new Date().toISOString().slice(0, 10); }
 
-  function loadTracked() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); }
-    catch { return []; }
-  }
-  function saveTracked(list) {
-    localStorage.setItem(STORE_KEY, JSON.stringify(list));
+  function showMsg(msg, type) {
+    const colours = { success: '#22c55e', danger: '#f97316', warning: '#f5c518' };
+    document.getElementById('add-msg').innerHTML =
+      `<span style="color:${colours[type]}">${msg}</span>`;
   }
 
-  function trackNumber(num, lottery) {
-    const list = loadTracked();
-    const today = new Date().toISOString().slice(0,10);
-    if (list.some(t => t.num === num && t.lottery === lottery)) {
-      alert(`${num} (${LOT_LABELS[lottery]}) is already being tracked.`);
-      return;
-    }
-    list.unshift({ num, lottery, date: today });
-    saveTracked(list);
-    renderTracked();
-  }
-
-  function removeTracked(num, lottery) {
-    const list = loadTracked().filter(t => !(t.num === num && t.lottery === lottery));
-    saveTracked(list);
-    renderTracked();
-  }
-
-  function renderTracked() {
-    const list = loadTracked();
-    const el = document.getElementById('tracked-list');
+  /* ── Render list ── */
+  function renderList(results) {
+    results = results || {};
+    const list = load();
+    const el = document.getElementById('my-numbers-list');
     if (!list.length) {
-      el.innerHTML = '<div style="color:#55667a;font-size:.8rem">No numbers tracked yet.</div>';
+      el.innerHTML = '<div style="color:#55667a;font-size:.8rem;padding:.5rem 0">No numbers saved yet.</div>';
       return;
     }
-    el.innerHTML = list.map(t => `
-      <div class="tracked-card" id="tc-${t.num}-${t.lottery}">
-        <span class="tracked-num">${t.num}</span>
-        <span class="tracked-lot">${LOT_LABELS[t.lottery]}</span>
-        <span class="tracked-date">Since ${t.date}</span>
-        <span class="tracked-result" id="tr-${t.num}-${t.lottery}">
-          <span style="color:#55667a;font-size:.72rem">—</span>
-        </span>
-        <button class="btn-sm-remove" style="margin-left:auto" onclick="checkTracked('${t.num}','${t.lottery}','${t.date}')">Check Draws</button>
-        <button class="btn-sm-remove" onclick="removeTracked('${t.num}','${t.lottery}')">&#10005;</button>
-      </div>`).join('');
+    el.innerHTML = list.map(t => {
+      const key    = t.num + '|' + t.lottery;
+      const res    = results[key];
+      let badge = '';
+      if (res === undefined) {
+        badge = '<span style="color:#55667a;font-size:.72rem">—</span>';
+      } else if (res.wins.length === 0) {
+        badge = `<span class="tracked-miss">No wins in ${res.draws_checked} draw${res.draws_checked!==1?'s':''} since ${fmtDate(t.date)}</span>`;
+      } else {
+        const w = res.wins[0];
+        badge = `<span class="tracked-win">&#127881; ${w.prize} &bull; ${w.lottery} &bull; ${w.date_fmt}</span>`;
+      }
+      return `
+        <div class="tracked-card">
+          <span class="tracked-num">${t.num}</span>
+          <span class="tracked-lot">${LOT_LABELS[t.lottery]}</span>
+          <span class="tracked-date">added ${fmtDate(t.date)}</span>
+          <span class="tracked-result" style="flex:1">${badge}</span>
+          <button class="btn-sm-remove" onclick="checkOne('${t.num}','${t.lottery}','${t.date}')">Check</button>
+          <button class="btn-sm-remove" onclick="removeNumber('${t.num}','${t.lottery}')">&#10005;</button>
+        </div>`;
+    }).join('');
   }
 
-  async function checkTracked(num, lottery, since) {
-    const resultEl = document.getElementById(`tr-${num}-${lottery}`);
-    resultEl.innerHTML = '<span style="color:#55667a">checking…</span>';
+  function fmtDate(iso) {
+    const [y,m,d] = iso.split('-');
+    const mNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${+d} ${mNames[+m]} ${y}`;
+  }
+
+  /* ── Check one number ── */
+  async function checkOne(num, lottery, since) {
     try {
       const res  = await fetch(`/search?number=${encodeURIComponent(num)}`);
       const data = await res.json();
-      if (!res.ok) { resultEl.innerHTML = '<span style="color:#f97316">Error</span>'; return; }
+      if (!res.ok) return {};
 
-      const lotKey = lottery === 'all' ? null : LOT_LABELS[lottery];
-      const wins = data.matches.filter(m =>
-        m.date >= since &&
-        (lottery === 'all' || m.lottery === lotKey) &&
-        ['1st Prize','2nd Prize','3rd Prize'].includes(m.prize)
+      const PRIZE_TIERS = ['1st Prize','2nd Prize','3rd Prize'];
+
+      // Count how many distinct draw dates exist after `since` (all lotteries)
+      const drawDatesAfter = new Set(
+        data.matches
+          .filter(m => m.date > since)
+          .map(m => m.date)
       );
 
-      if (wins.length === 0) {
-        resultEl.innerHTML = `<span class="tracked-miss">No wins yet since ${since}</span>`;
-      } else {
-        resultEl.innerHTML = `<span class="tracked-win">&#127881; Won ${wins.length}× — last: ${wins[0].date_fmt}</span>`;
-      }
-    } catch {
-      resultEl.innerHTML = '<span style="color:#f97316">Error</span>';
-    }
+      const wins = data.matches.filter(m =>
+        m.date > since &&
+        PRIZE_TIERS.includes(m.prize) &&
+        (lottery === 'all' || m.lottery.toLowerCase().includes(LOT_KEYWORDS[lottery]))
+      );
+
+      return { wins, draws_checked: drawDatesAfter.size };
+    } catch { return { wins: [], draws_checked: 0 }; }
   }
 
-  // Render on page load
-  renderTracked();
+  /* ── Check all numbers ── */
+  async function checkAll() {
+    const list = load();
+    if (!list.length) return;
+    const results = {};
+    await Promise.all(list.map(async t => {
+      results[t.num + '|' + t.lottery] = await checkOne(t.num, t.lottery, t.date);
+    }));
+    renderList(results);
+  }
+
+  /* ── Init ── */
+  renderList();
+  if (load().length) checkAll();
 </script>
 
 {% endblock %}

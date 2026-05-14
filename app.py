@@ -7,7 +7,6 @@ Reads lot_results.json and lets users check a 4-digit number for prizes.
 import json
 import math
 import os
-import random
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template, request
@@ -404,59 +403,10 @@ def search():
 
 @app.route("/simulate")
 def simulate():
-    return render_template("simulate.html", active_page="simulate")
+    return render_template("simulate.html", active_page="simulate",
+                           next_draw=next_draw_date())
 
 
-@app.route("/api/simulate")
-def api_simulate():
-    number = request.args.get("number", "").strip()
-    lottery = request.args.get("lottery", "all").strip()
-    try:
-        tries = max(1, min(100000, int(request.args.get("tries", 1000))))
-    except ValueError:
-        tries = 1000
-
-    if not number.isdigit() or len(number) != 4:
-        return jsonify({"error": "Enter a valid 4-digit number"}), 400
-    if lottery not in LOTTERY_KEYS:
-        lottery = "all"
-
-    data = load_results()
-    model = build_prediction_model(data, LOTTERY_KEYS[lottery])
-
-    pos_probs = model["pos_probs"]
-    digits_by_pos  = [list(pos_probs[p].keys())   for p in range(4)]
-    weights_by_pos = [list(pos_probs[p].values()) for p in range(4)]
-
-    wins = 0
-    last_draws: list[dict] = []
-    keep_from = max(0, tries - 100)
-    for i in range(tries):
-        drawn = "".join(
-            random.choices(digits_by_pos[p], weights=weights_by_pos[p], k=1)[0]
-            for p in range(4)
-        )
-        hit = drawn == number
-        if hit:
-            wins += 1
-        if i >= keep_from:
-            last_draws.append({"drawn": drawn, "hit": hit})
-
-    expected = 1.0
-    for p in range(4):
-        expected *= pos_probs[p].get(number[p], 0.001)
-    expected_pct = round(expected * 100, 6)
-    win_rate     = round(wins / tries * 100, 6) if tries else 0
-    luck         = round(win_rate / expected_pct, 2) if expected_pct else 0
-
-    return jsonify({
-        "wins":         wins,
-        "tries":        tries,
-        "win_rate":     win_rate,
-        "expected_pct": expected_pct,
-        "last_draws":   last_draws,
-        "luck":         luck,
-    })
 
 
 if __name__ == "__main__":
