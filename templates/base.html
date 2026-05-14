@@ -273,6 +273,16 @@
     }
     .algo-card strong { color: #aabbcc; }
 
+    .btn-add-sim {
+      background: rgba(245,197,24,.07); border: 1px solid rgba(245,197,24,.25);
+      color: #8899aa; border-radius: 4px; padding: .18rem .4rem; font-size: .62rem;
+      font-weight: 600; cursor: pointer; width: 100%; margin-top: .4rem;
+      transition: all .15s; letter-spacing: .3px;
+    }
+    .btn-add-sim:hover   { border-color: #f5c518; color: #f5c518; }
+    .btn-add-sim.added   { border-color: #22c55e; color: #22c55e; pointer-events: none; }
+    .btn-add-sim.already { border-color: #55667a; color: #55667a; pointer-events: none; }
+
     /* ── Simulation page ── */
     .sim-input {
       background: #0f1923; border: 2px solid #2a3f55; color: #fff;

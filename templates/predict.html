@@ -48,6 +48,9 @@
         {% if r.count > 0 %}
         <div style="font-size:.65rem;color:#55667a;margin-top:.3rem">Won {{ r.count }}× &bull; {{ r.last_seen_fmt }}</div>
         {% endif %}
+        <button class="btn-add-sim"
+                id="asim-{{ tab_key }}-{{ r.num }}"
+                onclick="addToSim('{{ r.num }}','{{ tab_key }}',this)">+ Track</button>
       </div>
       {% endfor %}
     </div>
@@ -91,6 +94,32 @@
 </div>
 
 <script>
+  /* ── Add to Simulation (My Numbers) ── */
+  const SIM_KEY = '4d_my_numbers_v3';
+  function simLoad() { try { return JSON.parse(localStorage.getItem(SIM_KEY) || '[]'); } catch { return []; } }
+
+  function addToSim(num, lottery, btn) {
+    const list = simLoad();
+    if (list.some(t => t.num === num && t.lottery === lottery)) {
+      btn.textContent = '✓ In list'; btn.classList.add('already'); return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    list.unshift({ num, lottery, tries: 10, date: today });
+    localStorage.setItem(SIM_KEY, JSON.stringify(list));
+    btn.textContent = '✓ Added'; btn.classList.add('added');
+  }
+
+  function markTracked() {
+    simLoad().forEach(t => {
+      const btn = document.getElementById(`asim-${t.lottery}-${t.num}`);
+      if (btn && !btn.classList.contains('added')) {
+        btn.textContent = '✓ In list'; btn.classList.add('already');
+      }
+    });
+  }
+  document.addEventListener('DOMContentLoaded', markTracked);
+
+  /* ── Predict / Check Number ── */
   const pinput = document.getElementById('predictInput');
   let selectedLottery = 'all';
 
