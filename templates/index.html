@@ -52,6 +52,12 @@
     }
     .btn-search:hover  { background: #ffd740; transform: translateY(-1px); }
     .btn-search:active { transform: translateY(0); }
+    .btn-clear {
+      background: #1f2e40; color: #8899aa; border: 2px solid #2a3f55;
+      border-radius: 8px; padding: .7rem 1rem; font-size: 1rem;
+      cursor: pointer; transition: all .15s;
+    }
+    .btn-clear:hover { border-color: #f5c518; color: #f5c518; }
 
     /* ── Result badges ── */
     .prize-badge {
@@ -142,8 +148,9 @@
                type="text" inputmode="numeric" pattern="\d{4}"
                maxlength="4" placeholder="0000"
                autocomplete="off" />
-        <div class="d-grid">
-          <button class="btn-search" onclick="doSearch()">Check Number</button>
+        <div class="d-flex gap-2">
+          <button class="btn-search flex-grow-1" onclick="doSearch()">Check Number</button>
+          <button class="btn-clear" onclick="clearInput()" title="Clear">&#10005;</button>
         </div>
       </div>
 
@@ -206,6 +213,12 @@
     input.value = input.value.replace(/\D/g, '').slice(0, 4);
   });
   input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+  function clearInput() {
+    input.value = '';
+    document.getElementById('results').innerHTML = '';
+    input.focus();
+  }
 
   // ── Filter state ──
   let allMatches = [];
