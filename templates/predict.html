@@ -36,7 +36,7 @@
     <div class="d-flex justify-content-end mt-3 mb-1">
       <button class="btn-add-sim add-all-btn"
               style="width:auto;padding:.3rem .9rem;font-size:.7rem"
-              onclick="addAllToSim('{{ tab_key }}')">+ Track All 20</button>
+              onclick="addAllToSim('{{ tab_key }}',this)">+ Track All 20</button>
     </div>
     <div class="predict-grid">
       {% for r in top20s[tab_key] %}
@@ -111,21 +111,40 @@
       localStorage.setItem(SIM_KEY, JSON.stringify(list));
       btn.textContent = '+ Track';
       btn.classList.remove('added', 'already');
-      return;
+    } else {
+      const today = new Date().toISOString().slice(0, 10);
+      list.unshift({ num, lottery, tries: 10, date: today });
+      localStorage.setItem(SIM_KEY, JSON.stringify(list));
+      btn.textContent = '✓ Tracked';
+      btn.classList.add('added');
     }
-    const today = new Date().toISOString().slice(0, 10);
-    list.unshift({ num, lottery, tries: 10, date: today });
-    localStorage.setItem(SIM_KEY, JSON.stringify(list));
-    btn.textContent = '✓ Tracked';
-    btn.classList.add('added');
+    updateAllBtn(lottery);
   }
 
-  function addAllToSim(tabKey) {
-    document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`).forEach(btn => {
-      if (!btn.classList.contains('added') && !btn.classList.contains('already')) {
-        btn.click();
-      }
-    });
+  function addAllToSim(tabKey, allBtn) {
+    const cards = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
+    const allTracked = cards.every(b => b.classList.contains('added') || b.classList.contains('already'));
+    if (allTracked) {
+      // Remove all
+      cards.forEach(btn => {
+        if (btn.classList.contains('added') || btn.classList.contains('already')) btn.click();
+      });
+      allBtn.textContent = '+ Track All 20';
+    } else {
+      // Add untracked
+      cards.forEach(btn => {
+        if (!btn.classList.contains('added') && !btn.classList.contains('already')) btn.click();
+      });
+      allBtn.textContent = '✓ Remove All';
+    }
+  }
+
+  function updateAllBtn(tabKey) {
+    const allBtn = document.querySelector(`#ptab-${tabKey} .add-all-btn`);
+    if (!allBtn) return;
+    const cards = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
+    const allTracked = cards.length > 0 && cards.every(b => b.classList.contains('added') || b.classList.contains('already'));
+    allBtn.textContent = allTracked ? '✓ Remove All' : '+ Track All 20';
   }
 
   function markTracked() {
@@ -133,6 +152,7 @@
       const btn = document.getElementById(`asim-${t.lottery}-${t.num}`);
       if (btn) { btn.textContent = '✓ Tracked'; btn.classList.add('already'); }
     });
+    ['all','damacai','magnum','toto'].forEach(updateAllBtn);
   }
   document.addEventListener('DOMContentLoaded', markTracked);
 
