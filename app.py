@@ -6,6 +6,7 @@ Reads lot_results.json and lets users check a 4-digit number for prizes.
 
 import json
 import os
+from collections import Counter
 from datetime import datetime
 from flask import Flask, jsonify, render_template, request
 
@@ -74,12 +75,50 @@ def latest_draws(data: dict, n: int = 3) -> list[dict]:
     return rows
 
 
+def compute_stats(data: dict, top: int = 20) -> tuple[dict, dict]:
+    tiers = ["1st", "2nd", "3rd"]
+    overall = {t: Counter() for t in tiers}
+    by_lot  = {key: {t: Counter() for t in tiers} for key in LOTTERY_ORDER}
+
+    for day in data.values():
+        for key in LOTTERY_ORDER:
+            lot = day.get(key)
+            if not lot:
+                continue
+            prizes = lot.get("prizes", {})
+            for t in tiers:
+                val = prizes.get(t)
+                if val:
+                    overall[t][val] += 1
+                    by_lot[key][t][val] += 1
+
+    def top_n(counter):
+        return counter.most_common(top)
+
+    stats = {
+        "all":     {t: top_n(overall[t])           for t in tiers},
+        "damacai": {t: top_n(by_lot["damacai"][t]) for t in tiers},
+        "magnum":  {t: top_n(by_lot["magnum"][t])  for t in tiers},
+        "toto":    {t: top_n(by_lot["toto"][t])    for t in tiers},
+    }
+    counts = {t: sum(overall[t].values()) for t in tiers}
+    return stats, counts
+
+
 @app.route("/")
 def index():
     data = load_results()
     recent = latest_draws(data)
     total_dates = len(data)
-    return render_template("index.html", recent=recent, total_dates=total_dates)
+    return render_template("index.html", recent=recent, total_dates=total_dates, active_page="results")
+
+
+@app.route("/analysis")
+def analysis():
+    data = load_results()
+    stats, counts = compute_stats(data)
+    return render_template("analysis.html", stats=stats, counts=counts,
+                           total_dates=len(data), active_page="analysis")
 
 
 @app.route("/search")

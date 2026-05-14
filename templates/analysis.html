@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}4D Lottery — Analysis{% endblock %}
+
+{% block header %}
+  <h1>&#128202; Number Frequency Analysis</h1>
+  <p>Most frequent 1st, 2nd &amp; 3rd prize numbers &mdash; {{ total_dates }} draw date{{ 's' if total_dates != 1 }} analysed</p>
+{% endblock %}
+
+{% block content %}
+
+<!-- Summary pills -->
+<div class="d-flex flex-wrap gap-3 mb-4">
+  <div class="summary-pill">
+    <div class="val">{{ total_dates }}</div>
+    <div class="lbl">Draw Dates</div>
+  </div>
+  <div class="summary-pill">
+    <div class="val" style="color:var(--gold)">{{ counts['1st'] }}</div>
+    <div class="lbl">1st Prizes</div>
+  </div>
+  <div class="summary-pill">
+    <div class="val" style="color:var(--silver)">{{ counts['2nd'] }}</div>
+    <div class="lbl">2nd Prizes</div>
+  </div>
+  <div class="summary-pill">
+    <div class="val" style="color:var(--bronze)">{{ counts['3rd'] }}</div>
+    <div class="lbl">3rd Prizes</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav analysis-tabs mb-0" id="analysisTabs">
+  <li class="nav-item">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-all">All Lotteries</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-damacai">DAMACAI</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-magnum">MAGNUM</button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-toto">SPORTSTOTO</button>
+  </li>
+</ul>
+
+<div class="tab-content">
+  {% for tab_key, tab_label in [('all','All Lotteries'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
+  <div class="tab-pane fade {% if tab_key == 'all' %}show active{% endif %}" id="tab-{{ tab_key }}">
+    <div class="row g-3 mt-0">
+
+      {% for tier, tier_label, tier_cls in [('1st','1st Prize','tier-1st'),('2nd','2nd Prize','tier-2nd'),('3rd','3rd Prize','tier-3rd')] %}
+      <div class="col-md-4">
+        <div class="stat-card {{ tier_cls }}">
+          <h6>{{ tier_label }}</h6>
+          {% set entries = stats[tab_key][tier] %}
+          {% if entries %}
+            {% set max_count = entries[0][1] %}
+            {% for num, cnt in entries %}
+            <div class="stat-row">
+              <span class="stat-rank">{{ loop.index }}</span>
+              <span class="stat-num">{{ num }}</span>
+              <div class="stat-bar-wrap">
+                <div class="stat-bar" style="width:{{ (cnt / max_count * 100) | round | int }}%"></div>
+              </div>
+              <span class="stat-count">×{{ cnt }}</span>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p style="color:#8899aa;font-size:.85rem;">No data.</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
