@@ -96,6 +96,29 @@
 
     /* ── Alert ── */
     .alert-result { border-radius: 10px; font-weight: 600; }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      background: #172130; border: 1px solid #243447; border-radius: 10px;
+      padding: .85rem 1rem; margin-bottom: .75rem;
+    }
+    .filter-group { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .5rem; }
+    .filter-group:last-child { margin-bottom: 0; }
+    .filter-label { font-size: .75rem; color: #8899aa; font-weight: 600; letter-spacing: .5px;
+                    text-transform: uppercase; min-width: 52px; }
+    .filter-pill {
+      background: #1f2e40; border: 1px solid #2a3f55; color: #8899aa;
+      border-radius: 20px; padding: .2rem .7rem; font-size: .75rem; font-weight: 600;
+      cursor: pointer; transition: all .15s; user-select: none;
+    }
+    .filter-pill.active { background: rgba(245,197,24,.12); border-color: #f5c518; color: #f5c518; }
+    .filter-pill:hover { border-color: #f5c518; color: #f5c518; }
+    .filter-select {
+      background: #1f2e40; border: 1px solid #2a3f55; color: #d0dde8;
+      border-radius: 6px; padding: .2rem .5rem; font-size: .78rem; cursor: pointer;
+    }
+    .filter-select:focus { outline: none; border-color: #f5c518; }
+    .match-count { font-size: .78rem; color: #8899aa; margin-top: .4rem; }
   </style>
 </head>
 <body>
@@ -179,13 +202,16 @@
 <script>
   const input = document.getElementById('numberInput');
 
-  // Only allow digits
   input.addEventListener('input', () => {
     input.value = input.value.replace(/\D/g, '').slice(0, 4);
   });
-
-  // Enter key triggers search
   input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+  // ── Filter state ──
+  let allMatches = [];
+  let activeLotteries = new Set();
+  let activeTiers     = new Set();
+  let fromYear = 0, toYear = 9999;
 
   function prizeBadge(tier) {
     const map = {
@@ -198,12 +224,92 @@
     return `<span class="prize-badge ${map[tier] || ''}">${tier}</span>`;
   }
 
+  function matchYear(m) { return parseInt(m.date.slice(0, 4), 10); }
+
+  function buildFilters(matches) {
+    const lotteries = [...new Set(matches.map(m => m.lottery))].sort();
+    const tiers     = ['1st Prize','2nd Prize','3rd Prize','Special','Consolation']
+                        .filter(t => matches.some(m => m.prize === t));
+    const years     = matches.map(matchYear);
+    const minY = Math.min(...years), maxY = Math.max(...years);
+
+    activeLotteries = new Set(lotteries);
+    activeTiers     = new Set(tiers);
+    fromYear = minY; toYear = maxY;
+
+    // Lottery pills
+    const lotPills = lotteries.map(l =>
+      `<span class="filter-pill active" onclick="togglePill(activeLotteries,'${l}',this)">${l}</span>`
+    ).join('');
+
+    // Tier pills
+    const tierPills = tiers.map(t =>
+      `<span class="filter-pill active" onclick="togglePill(activeTiers,'${t}',this)">${t}</span>`
+    ).join('');
+
+    // Year selects
+    let fromOpts = '', toOpts = '';
+    for (let y = minY; y <= maxY; y++) {
+      fromOpts += `<option value="${y}">${y}</option>`;
+      toOpts   += `<option value="${y}" ${y === maxY ? 'selected' : ''}>${y}</option>`;
+    }
+
+    return `
+      <div class="filter-bar">
+        <div class="filter-group">
+          <span class="filter-label">Lottery</span>${lotPills}
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Prize</span>${tierPills}
+        </div>
+        <div class="filter-group">
+          <span class="filter-label">Year</span>
+          <select class="filter-select" id="fromYear" onchange="fromYear=+this.value;applyFilters()">${fromOpts}</select>
+          <span style="color:#8899aa">–</span>
+          <select class="filter-select" id="toYear" onchange="toYear=+this.value;applyFilters()">${toOpts}</select>
+        </div>
+        <div class="match-count" id="matchCount"></div>
+      </div>
+      <div id="results-list"></div>`;
+  }
+
+  function togglePill(set, value, el) {
+    if (set.has(value)) { set.delete(value); el.classList.remove('active'); }
+    else                { set.add(value);    el.classList.add('active');    }
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const filtered = allMatches.filter(m =>
+      activeLotteries.has(m.lottery) &&
+      activeTiers.has(m.prize) &&
+      matchYear(m) >= fromYear &&
+      matchYear(m) <= toYear
+    );
+
+    const total = allMatches.length;
+    const shown = filtered.length;
+    document.getElementById('matchCount').textContent =
+      `Showing ${shown} of ${total} match${total !== 1 ? 'es' : ''}`;
+
+    let html = '';
+    for (const m of filtered) {
+      html += `
+        <div class="match-card">
+          <div>
+            <div class="match-date">${m.date_fmt}</div>
+            <div class="match-draw">#${m.draw_number}</div>
+          </div>
+          <div class="match-lottery">${m.lottery}</div>
+          <div>${prizeBadge(m.prize)}</div>
+        </div>`;
+    }
+    document.getElementById('results-list').innerHTML = html || '<div class="no-match"><div class="icon">&#128269;</div><div class="mt-2">No matches for current filters.</div></div>';
+  }
+
   async function doSearch() {
     const num = input.value.trim();
-    if (num.length !== 4) {
-      showError('Please enter exactly 4 digits.');
-      return;
-    }
+    if (num.length !== 4) { showError('Please enter exactly 4 digits.'); return; }
 
     document.getElementById('spinner').style.display = 'block';
     document.getElementById('results').innerHTML = '';
@@ -211,7 +317,6 @@
     try {
       const res  = await fetch(`/search?number=${encodeURIComponent(num)}`);
       const data = await res.json();
-
       if (!res.ok) { showError(data.error || 'Search failed.'); return; }
 
       if (data.matches.length === 0) {
@@ -223,25 +328,16 @@
         return;
       }
 
-      const count = data.matches.length;
-      let html = `
+      allMatches = data.matches;
+      const count = allMatches.length;
+      const alertHtml = `
         <div class="alert alert-success alert-result mb-3">
           &#127881; <strong>${num}</strong> matched <strong>${count}</strong> prize${count !== 1 ? 's' : ''}
           across ${data.total_draws} draw${data.total_draws !== 1 ? 's' : ''}!
         </div>`;
 
-      for (const m of data.matches) {
-        html += `
-          <div class="match-card">
-            <div>
-              <div class="match-date">${m.date_fmt}</div>
-              <div class="match-draw">#${m.draw_number}</div>
-            </div>
-            <div class="match-lottery">${m.lottery}</div>
-            <div>${prizeBadge(m.prize)}</div>
-          </div>`;
-      }
-      document.getElementById('results').innerHTML = html;
+      document.getElementById('results').innerHTML = alertHtml + buildFilters(allMatches);
+      applyFilters();
 
     } catch (err) {
       showError('Network error. Is the server running?');
