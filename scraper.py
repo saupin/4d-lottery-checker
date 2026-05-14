@@ -14,6 +14,7 @@ import re
 import os
 import sys
 import json
+import time
 import argparse
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
@@ -71,14 +72,18 @@ def empty_result(label: str, date_str: str) -> dict:
 
 def fetch_page(date_str: str) -> BeautifulSoup | None:
     url = BASE_URL.format(date=date_str)
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        resp.raise_for_status()
-        return BeautifulSoup(resp.text, "html.parser")
-    except requests.HTTPError as e:
-        print(f"HTTP error for {date_str}: {e}", file=sys.stderr)
-    except requests.RequestException as e:
-        print(f"Request failed for {date_str}: {e}", file=sys.stderr)
+    for attempt in range(1, 4):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            resp.raise_for_status()
+            return BeautifulSoup(resp.text, "html.parser")
+        except requests.HTTPError as e:
+            print(f"HTTP error for {date_str}: {e}", file=sys.stderr)
+            break
+        except requests.RequestException as e:
+            print(f"Request failed for {date_str} (attempt {attempt}/3): {e}", file=sys.stderr)
+            if attempt < 3:
+                time.sleep(2)
     return None
 
 
@@ -228,6 +233,19 @@ def last_draw_dates(n: int) -> list[str]:
     return dates
 
 
+def all_draw_dates(from_str: str, to_str: str) -> list[str]:
+    """Return all draw dates (Wed/Sat/Sun) in the inclusive range [from_str, to_str]."""
+    start = datetime.strptime(from_str, "%Y-%m-%d")
+    end   = datetime.strptime(to_str,   "%Y-%m-%d")
+    dates: list[str] = []
+    day = start
+    while day <= end:
+        if day.weekday() in DRAW_DAYS:
+            dates.append(day.strftime("%Y-%m-%d"))
+        day += timedelta(days=1)
+    return dates
+
+
 def format_results(results: dict, date_str: str) -> str:
     try:
         dt = datetime.strptime(date_str, "%Y-%m-%d")
@@ -294,9 +312,32 @@ def main():
         metavar="FILE",
         help="Append results to a JSON file (skips dates already stored)",
     )
+    parser.add_argument(
+        "--from-date",
+        metavar="YYYY-MM-DD",
+        help="Fetch all draw dates from this date (use with --to-date; default end: today)",
+    )
+    parser.add_argument(
+        "--to-date",
+        metavar="YYYY-MM-DD",
+        help="End date for --from-date range (default: today)",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=1.0,
+        metavar="SECONDS",
+        help="Sleep between requests to avoid rate limiting (default: 1.0)",
+    )
     args = parser.parse_args()
 
-    dates = [args.date] if args.date else last_draw_dates(args.days)
+    if args.from_date:
+        to = args.to_date or datetime.today().strftime("%Y-%m-%d")
+        dates = all_draw_dates(args.from_date, to)
+    elif args.date:
+        dates = [args.date]
+    else:
+        dates = last_draw_dates(args.days)
 
     # Load existing saved data to avoid re-fetching already-stored dates
     saved: dict[str, dict] = {}
@@ -307,20 +348,32 @@ def main():
         except (json.JSONDecodeError, OSError):
             saved = {}
 
+    total = len(dates)
     all_results: dict[str, dict] = {}
-    for date_str in dates:
+    fetched = skipped = 0
+    for i, date_str in enumerate(dates, 1):
         if args.save and date_str in saved:
-            print(f"Skipping {date_str} (already saved).", file=sys.stderr)
+            print(f"Skipping {date_str} ({i}/{total})", file=sys.stderr)
             all_results[date_str] = saved[date_str]
+            skipped += 1
             continue
-        print(f"Fetching {date_str}...", file=sys.stderr)
-        all_results[date_str] = scrape_results(date_str)
+        print(f"Fetching {date_str} ({i}/{total})...", file=sys.stderr)
+        result = scrape_results(date_str)
+        all_results[date_str] = result
+        fetched += 1
 
-    # Merge and persist to file
-    if args.save:
-        merged = {**saved, **all_results}
-        with open(args.save, "w", encoding="utf-8") as f:
-            json.dump(merged, f, indent=2, ensure_ascii=False)
+        if args.save:
+            saved[date_str] = result
+            with open(args.save, "w", encoding="utf-8") as f:
+                json.dump(saved, f, indent=2, ensure_ascii=False)
+
+        if i < total:
+            time.sleep(args.delay)
+
+    if total > 1:
+        print(f"\nDone. {fetched} fetched, {skipped} skipped.", file=sys.stderr)
+
+    if args.save and fetched > 0:
         print(f"Results saved to {args.save}", file=sys.stderr)
 
     if args.json:
