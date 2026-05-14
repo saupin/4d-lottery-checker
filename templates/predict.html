@@ -131,7 +131,7 @@
         : `Won <strong>${data.count}</strong> time${data.count !== 1 ? 's' : ''} in ${LOTTERY_LABELS[selectedLottery]} &bull; last: <strong>${data.last_seen_fmt}</strong>`;
 
       const factors = [
-        { name: 'Historical Frequency (60%)', val: data.hist_norm },
+        { name: 'Historical Freq. (60%)', val: data.hist_norm },
         { name: 'Recency (15%)',              val: data.recency_norm },
         { name: 'Positional Pattern (15%)',   val: data.pos_norm },
         { name: 'Gap / Due (10%)',            val: data.gap_norm },
