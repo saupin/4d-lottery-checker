@@ -86,13 +86,18 @@
 
     /* ── Match result card ── */
     .match-card {
-      background: #172130; border: 1px solid #243447; border-radius: 10px;
+      background: #ffffff; border: 1px solid #dddddd; border-radius: 10px;
       padding: 1rem 1.25rem; margin-bottom: .75rem;
       display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+      transition: background .15s, color .15s;
     }
-    .match-date    { font-size: .82rem; color: #8899aa; min-width: 130px; }
-    .match-lottery { font-weight: 700; font-size: 1rem; min-width: 100px; }
-    .match-draw    { font-size: .8rem; color: #55aacc; }
+    .match-card:hover { background: #000000; }
+    .match-date    { font-size: .82rem; color: #444444; min-width: 130px; transition: color .15s; }
+    .match-lottery { font-weight: 700; font-size: 1rem; color: #000000; min-width: 100px; transition: color .15s; }
+    .match-draw    { font-size: .8rem; color: #555555; transition: color .15s; }
+    .match-card:hover .match-date,
+    .match-card:hover .match-lottery,
+    .match-card:hover .match-draw { color: #ffffff; }
 
     /* ── No match ── */
     .no-match { text-align: center; padding: 2rem; color: #8899aa; }
@@ -100,13 +105,15 @@
 
     /* ── Latest draws table ── */
     .draws-section h5 { color: #aabbcc; font-size: .85rem; letter-spacing: .8px; text-transform: uppercase; font-weight: 600; }
-    .draw-table { background: #172130; border-radius: 10px; overflow: hidden; border: 1px solid #243447; }
-    .draw-table thead th { background: #1f3248; color: #8899aa; font-size: .8rem; letter-spacing: .5px; border: none; padding: .6rem 1rem; }
-    .draw-table tbody td { border-color: #243447; color: #d0dde8; font-size: .88rem; padding: .5rem 1rem; vertical-align: middle; }
-    .draw-table tbody tr:hover td { background: #1f2e40; }
+    .draw-table { background: #ffffff; border-radius: 10px; overflow: hidden; border: 1px solid #dddddd; }
+    .draw-table thead th { background: #e8e8e8; color: #333333; font-size: .8rem; letter-spacing: .5px; border: none; padding: .6rem 1rem; }
+    .draw-table tbody td { border-color: #dddddd; color: #000000; font-size: .88rem; padding: .5rem 1rem; vertical-align: middle; background: #ffffff; transition: background .15s, color .15s; }
+    .draw-table tbody tr:hover td { background: #000000 !important; color: #ffffff !important; }
     .lottery-name { font-weight: 700; font-size: .85rem; }
-    .prize-num    { font-family: monospace; font-size: .95rem; font-weight: 600; color: #f5c518; }
-    .special-nums { font-size: .78rem; color: #88aacc; font-family: monospace; }
+    .prize-num    { font-family: monospace; font-size: .95rem; font-weight: 600; color: #c8960a; }
+    .draw-table tbody tr:hover .prize-num  { color: #f5c518; }
+    .special-nums { font-size: .78rem; color: #336699; font-family: monospace; }
+    .draw-table tbody tr:hover .special-nums { color: #88aacc; }
 
     /* ── Spinner ── */
     #spinner { display: none; }
@@ -119,26 +126,26 @@
 
     /* ── Filter bar ── */
     .filter-bar {
-      background: #172130; border: 1px solid #243447; border-radius: 10px;
+      background: #ffffff; border: 1px solid #dddddd; border-radius: 10px;
       padding: .85rem 1rem; margin-bottom: .75rem;
     }
     .filter-group { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .5rem; }
     .filter-group:last-child { margin-bottom: 0; }
-    .filter-label { font-size: .75rem; color: #8899aa; font-weight: 600; letter-spacing: .5px;
+    .filter-label { font-size: .75rem; color: #555555; font-weight: 600; letter-spacing: .5px;
                     text-transform: uppercase; min-width: 52px; }
     .filter-pill {
-      background: #1f2e40; border: 1px solid #2a3f55; color: #8899aa;
+      background: #f0f0f0; border: 1px solid #cccccc; color: #555555;
       border-radius: 20px; padding: .2rem .7rem; font-size: .75rem; font-weight: 600;
       cursor: pointer; transition: all .15s; user-select: none;
     }
-    .filter-pill.active { background: rgba(245,197,24,.12); border-color: #f5c518; color: #f5c518; }
-    .filter-pill:hover { border-color: #f5c518; color: #f5c518; }
+    .filter-pill.active { background: #000000; border-color: #000000; color: #ffffff; }
+    .filter-pill:hover  { background: #000000; border-color: #000000; color: #ffffff; }
     .filter-select {
-      background: #1f2e40; border: 1px solid #2a3f55; color: #d0dde8;
+      background: #f0f0f0; border: 1px solid #cccccc; color: #000000;
       border-radius: 6px; padding: .2rem .5rem; font-size: .78rem; cursor: pointer;
     }
-    .filter-select:focus { outline: none; border-color: #f5c518; }
-    .match-count { font-size: .78rem; color: #8899aa; margin-top: .4rem; }
+    .filter-select:focus { outline: none; border-color: #000000; }
+    .match-count { font-size: .78rem; color: #555555; margin-top: .4rem; }
 
     /* ── Analysis page ── */
     .stat-card {
