@@ -101,6 +101,7 @@
     selectedLottery = key;
     document.querySelectorAll('[id^="lot-"]').forEach(el => el.classList.remove('active'));
     document.getElementById('lot-' + key).classList.add('active');
+    if (pinput.value.trim().length === 4) checkNumber();
   }
 
   function clearPredict() {
