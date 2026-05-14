@@ -115,9 +115,10 @@ def index():
     return render_template("index.html", recent=recent, total_dates=total_dates, active_page="results")
 
 
-def compute_extended_stats(data: dict) -> dict:
+def compute_extended_stats(data: dict, lottery: str | None = None) -> dict:
     today = datetime.today().date()
     tiers = ["1st", "2nd", "3rd"]
+    keys = [lottery] if lottery else LOTTERY_ORDER
 
     pos_freq = [{str(d): 0 for d in range(10)} for _ in range(4)]
     sum_dist = Counter()
@@ -128,7 +129,7 @@ def compute_extended_stats(data: dict) -> dict:
 
     for date_str in sorted(data.keys()):
         day = data[date_str]
-        for key in LOTTERY_ORDER:
+        for key in keys:
             lot = day.get(key)
             if not lot:
                 continue
@@ -381,9 +382,9 @@ def api_score():
 def analysis():
     data = load_results()
     stats, counts = compute_stats(data)
-    ext = compute_extended_stats(data)
+    exts = {k: compute_extended_stats(data, v) for k, v in LOTTERY_KEYS.items()}
     return render_template("analysis.html", stats=stats, counts=counts,
-                           ext=ext, total_dates=len(data), active_page="analysis")
+                           exts=exts, total_dates=len(data), active_page="analysis")
 
 
 @app.route("/search")
