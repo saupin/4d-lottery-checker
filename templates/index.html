@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4D Lottery Checker</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --gold:   #f5c518;
+      --silver: #a8a9ad;
+      --bronze: #cd7f32;
+    }
+    body { background: #0f1923; color: #e8eaf0; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+
+    /* ── Header ── */
+    .site-header {
+      background: linear-gradient(135deg, #1a2a3a 0%, #0d1b2a 100%);
+      border-bottom: 2px solid #f5c518;
+      padding: 1.5rem 0 1.2rem;
+    }
+    .site-header h1 { font-size: 1.8rem; font-weight: 700; color: #f5c518; letter-spacing: .5px; }
+    .site-header p  { color: #8899aa; font-size: .88rem; margin: 0; }
+
+    /* ── Search card ── */
+    .search-card {
+      background: #172130;
+      border: 1px solid #243447;
+      border-radius: 14px;
+      padding: 2rem;
+    }
+    .search-card label { font-weight: 600; color: #aabbcc; font-size: .85rem; letter-spacing: .8px; text-transform: uppercase; }
+    .number-input {
+      background: #0f1923;
+      border: 2px solid #2a3f55;
+      color: #fff;
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: 1rem;
+      text-align: center;
+      border-radius: 10px;
+      padding: .6rem 1rem;
+      width: 100%;
+      transition: border-color .2s;
+    }
+    .number-input:focus { outline: none; border-color: #f5c518; background: #0f1923; color: #fff; }
+    .number-input::placeholder { color: #2a3f55; letter-spacing: .5rem; }
+    .btn-search {
+      background: #f5c518; color: #0f1923; font-weight: 700;
+      border: none; border-radius: 8px; padding: .7rem 2.5rem;
+      font-size: 1rem; transition: background .15s, transform .1s;
+    }
+    .btn-search:hover  { background: #ffd740; transform: translateY(-1px); }
+    .btn-search:active { transform: translateY(0); }
+
+    /* ── Result badges ── */
+    .prize-badge {
+      display: inline-block; border-radius: 6px; font-size: .75rem;
+      font-weight: 700; padding: .25rem .65rem; letter-spacing: .4px; text-transform: uppercase;
+    }
+    .prize-1st         { background: var(--gold);   color: #0f1923; }
+    .prize-2nd         { background: var(--silver); color: #0f1923; }
+    .prize-3rd         { background: var(--bronze); color: #fff; }
+    .prize-special     { background: #1e7e34;       color: #fff; }
+    .prize-consolation { background: #155fa0;       color: #fff; }
+
+    /* ── Match result card ── */
+    .match-card {
+      background: #172130; border: 1px solid #243447; border-radius: 10px;
+      padding: 1rem 1.25rem; margin-bottom: .75rem;
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .match-date    { font-size: .82rem; color: #8899aa; min-width: 130px; }
+    .match-lottery { font-weight: 700; font-size: 1rem; min-width: 100px; }
+    .match-draw    { font-size: .8rem; color: #55aacc; }
+
+    /* ── No match ── */
+    .no-match { text-align: center; padding: 2rem; color: #8899aa; }
+    .no-match .icon { font-size: 2.5rem; }
+
+    /* ── Latest draws table ── */
+    .draws-section h5 { color: #aabbcc; font-size: .85rem; letter-spacing: .8px; text-transform: uppercase; font-weight: 600; }
+    .draw-table { background: #172130; border-radius: 10px; overflow: hidden; border: 1px solid #243447; }
+    .draw-table thead th { background: #1f3248; color: #8899aa; font-size: .8rem; letter-spacing: .5px; border: none; padding: .6rem 1rem; }
+    .draw-table tbody td { border-color: #243447; color: #d0dde8; font-size: .88rem; padding: .5rem 1rem; vertical-align: middle; }
+    .draw-table tbody tr:hover td { background: #1f2e40; }
+    .lottery-name { font-weight: 700; font-size: .85rem; }
+    .prize-num    { font-family: monospace; font-size: .95rem; font-weight: 600; color: #f5c518; }
+    .special-nums { font-size: .78rem; color: #88aacc; font-family: monospace; }
+
+    /* ── Spinner ── */
+    #spinner { display: none; }
+    .spin { width: 1.4rem; height: 1.4rem; border: 3px solid #2a3f55; border-top-color: #f5c518;
+            border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Alert ── */
+    .alert-result { border-radius: 10px; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="site-header">
+  <div class="container">
+    <h1>&#127922; 4D Lottery Checker</h1>
+    <p>Check your number against DAMACAI, MAGNUM &amp; SPORTSTOTO results &mdash; {{ total_dates }} draw date{{ 's' if total_dates != 1 }} stored</p>
+  </div>
+</header>
+
+<div class="container py-4">
+  <div class="row justify-content-center g-4">
+
+    <!-- Search column -->
+    <div class="col-lg-5">
+      <div class="search-card">
+        <label class="mb-2 d-block">Enter your 4-digit number</label>
+        <input id="numberInput" class="number-input mb-3"
+               type="text" inputmode="numeric" pattern="\d{4}"
+               maxlength="4" placeholder="0000"
+               autocomplete="off" />
+        <div class="d-grid">
+          <button class="btn-search" onclick="doSearch()">Check Number</button>
+        </div>
+      </div>
+
+      <!-- Spinner -->
+      <div id="spinner" class="text-center mt-3">
+        <div class="spin"></div>
+      </div>
+
+      <!-- Results area -->
+      <div id="results" class="mt-3"></div>
+    </div>
+
+    <!-- Latest draws column -->
+    <div class="col-lg-7">
+      <div class="draws-section">
+        <h5 class="mb-3">Latest Draw Results</h5>
+        {% if recent %}
+          {% for draw in recent %}
+          <div class="mb-3">
+            <div class="mb-1" style="color:#f5c518; font-weight:600; font-size:.9rem;">{{ draw.date_fmt }}</div>
+            <table class="table draw-table mb-0">
+              <thead>
+                <tr>
+                  <th>Lottery</th>
+                  <th>1st</th><th>2nd</th><th>3rd</th>
+                  <th>Special / Consolation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for lot in draw.lotteries %}
+                <tr>
+                  <td><span class="lottery-name">{{ lot.label }}</span><br>
+                      <span style="font-size:.75rem;color:#55aacc;">#{{ lot.draw_number }}</span></td>
+                  <td><span class="prize-num">{{ lot.prizes['1st'] or '—' }}</span></td>
+                  <td><span class="prize-num">{{ lot.prizes['2nd'] or '—' }}</span></td>
+                  <td><span class="prize-num">{{ lot.prizes['3rd'] or '—' }}</span></td>
+                  <td>
+                    <span class="special-nums">{{ lot.prizes.get('special', []) | join(' ') }}</span><br>
+                    <span class="special-nums" style="color:#7799bb;">{{ lot.prizes.get('consolation', []) | join(' ') }}</span>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="text-muted">No results stored yet. Run the scraper first.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div><!-- /row -->
+</div><!-- /container -->
+
+<script>
+  const input = document.getElementById('numberInput');
+
+  // Only allow digits
+  input.addEventListener('input', () => {
+    input.value = input.value.replace(/\D/g, '').slice(0, 4);
+  });
+
+  // Enter key triggers search
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+  function prizeBadge(tier) {
+    const map = {
+      '1st Prize':   'prize-1st',
+      '2nd Prize':   'prize-2nd',
+      '3rd Prize':   'prize-3rd',
+      'Special':     'prize-special',
+      'Consolation': 'prize-consolation',
+    };
+    return `<span class="prize-badge ${map[tier] || ''}">${tier}</span>`;
+  }
+
+  async function doSearch() {
+    const num = input.value.trim();
+    if (num.length !== 4) {
+      showError('Please enter exactly 4 digits.');
+      return;
+    }
+
+    document.getElementById('spinner').style.display = 'block';
+    document.getElementById('results').innerHTML = '';
+
+    try {
+      const res  = await fetch(`/search?number=${encodeURIComponent(num)}`);
+      const data = await res.json();
+
+      if (!res.ok) { showError(data.error || 'Search failed.'); return; }
+
+      if (data.matches.length === 0) {
+        document.getElementById('results').innerHTML = `
+          <div class="no-match">
+            <div class="icon">&#128531;</div>
+            <div class="mt-2"><strong>${num}</strong> was not found in any of the ${data.total_draws} draw${data.total_draws !== 1 ? 's' : ''} stored.</div>
+          </div>`;
+        return;
+      }
+
+      const count = data.matches.length;
+      let html = `
+        <div class="alert alert-success alert-result mb-3">
+          &#127881; <strong>${num}</strong> matched <strong>${count}</strong> prize${count !== 1 ? 's' : ''}
+          across ${data.total_draws} draw${data.total_draws !== 1 ? 's' : ''}!
+        </div>`;
+
+      for (const m of data.matches) {
+        html += `
+          <div class="match-card">
+            <div>
+              <div class="match-date">${m.date_fmt}</div>
+              <div class="match-draw">#${m.draw_number}</div>
+            </div>
+            <div class="match-lottery">${m.lottery}</div>
+            <div>${prizeBadge(m.prize)}</div>
+          </div>`;
+      }
+      document.getElementById('results').innerHTML = html;
+
+    } catch (err) {
+      showError('Network error. Is the server running?');
+    } finally {
+      document.getElementById('spinner').style.display = 'none';
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('results').innerHTML =
+      `<div class="alert alert-danger alert-result">${msg}</div>`;
+  }
+</script>
+
+</body>
+</html>
