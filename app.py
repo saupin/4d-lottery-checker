@@ -13,7 +13,8 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-RESULTS_FILE = os.path.join(os.path.dirname(__file__), "lot_results.json")
+RESULTS_FILE    = os.path.join(os.path.dirname(__file__), "lot_results.json")
+MY_NUMBERS_FILE = os.path.join(os.path.dirname(__file__), "my_numbers.json")
 
 PRIZE_ORDER = ["1st", "2nd", "3rd", "special", "consolation"]
 PRIZE_LABEL = {
@@ -407,6 +408,78 @@ def simulate():
                            next_draw=next_draw_date())
 
 
+
+
+def _load_my_numbers() -> list:
+    if not os.path.exists(MY_NUMBERS_FILE):
+        return []
+    with open(MY_NUMBERS_FILE, encoding="utf-8") as f:
+        return json.load(f)
+
+def _save_my_numbers(data: list) -> None:
+    with open(MY_NUMBERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+@app.route("/api/my-numbers", methods=["GET"])
+def api_my_numbers_get():
+    return jsonify(_load_my_numbers())
+
+
+@app.route("/api/my-numbers/add", methods=["POST"])
+def api_my_numbers_add():
+    body    = request.get_json(silent=True) or {}
+    num     = body.get("num", "").strip()
+    lottery = body.get("lottery", "all").strip()
+    tries   = max(1, int(body.get("tries", 10)))
+    date    = body.get("date", datetime.today().strftime("%Y-%m-%d"))
+
+    if not num.isdigit() or len(num) != 4:
+        return jsonify({"error": "Invalid number"}), 400
+    if lottery not in LOTTERY_KEYS:
+        lottery = "all"
+
+    data = _load_my_numbers()
+    if any(t["num"] == num and t["lottery"] == lottery for t in data):
+        return jsonify({"error": "Already tracked"}), 409
+
+    data.insert(0, {"num": num, "lottery": lottery, "tries": tries, "date": date})
+    _save_my_numbers(data)
+    return jsonify(data)
+
+
+@app.route("/api/my-numbers/remove", methods=["POST"])
+def api_my_numbers_remove():
+    body    = request.get_json(silent=True) or {}
+    num     = body.get("num", "").strip()
+    lottery = body.get("lottery", "all").strip()
+    date    = body.get("date", "")
+
+    data = [t for t in _load_my_numbers()
+            if not (t["num"] == num and t["lottery"] == lottery and t["date"] == date)]
+    _save_my_numbers(data)
+    return jsonify(data)
+
+
+@app.route("/api/my-numbers/update", methods=["POST"])
+def api_my_numbers_update():
+    body        = request.get_json(silent=True) or {}
+    key_num     = body.get("key_num", "").strip()
+    key_lottery = body.get("key_lottery", "all").strip()
+    key_date    = body.get("key_date", "").strip()
+    new_lottery = body.get("lottery", key_lottery).strip()
+    new_tries   = max(1, int(body.get("tries", 10)))
+
+    if new_lottery not in LOTTERY_KEYS:
+        new_lottery = "all"
+
+    data = _load_my_numbers()
+    for t in data:
+        if t["num"] == key_num and t["lottery"] == key_lottery and t["date"] == key_date:
+            t["lottery"] = new_lottery
+            t["tries"]   = new_tries
+    _save_my_numbers(data)
+    return jsonify(data)
 
 
 if __name__ == "__main__":

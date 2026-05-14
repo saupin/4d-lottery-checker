@@ -5,3 +5,4 @@ __pycache__/
 *.log
 
 .vercel
+my_numbers.json

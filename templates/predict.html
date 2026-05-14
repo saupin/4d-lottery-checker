@@ -99,44 +99,50 @@
 </div>
 
 <script>
-  /* ── Add to Simulation (My Numbers) ── */
-  const SIM_KEY = '4d_my_numbers_v3';
-  function simLoad() { try { return JSON.parse(localStorage.getItem(SIM_KEY) || '[]'); } catch { return []; } }
-
-  function addToSim(num, lottery, btn) {
-    const list = simLoad();
-    const idx  = list.findIndex(t => t.num === num && t.lottery === lottery);
-    if (idx !== -1) {
-      list.splice(idx, 1);
-      localStorage.setItem(SIM_KEY, JSON.stringify(list));
+  /* ── Add to Simulation (My Numbers) via server API ── */
+  async function addToSim(num, lottery, btn) {
+    btn.disabled = true;
+    const tracked = btn.classList.contains('added') || btn.classList.contains('already');
+    if (tracked) {
+      const today = btn.dataset.date || new Date().toISOString().slice(0,10);
+      await fetch('/api/my-numbers/remove', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ num, lottery, date: today })
+      });
       btn.textContent = '+ Track';
-      btn.classList.remove('added', 'already');
+      btn.classList.remove('added','already');
+      delete btn.dataset.date;
     } else {
-      const today = new Date().toISOString().slice(0, 10);
-      list.unshift({ num, lottery, tries: 10, date: today });
-      localStorage.setItem(SIM_KEY, JSON.stringify(list));
-      btn.textContent = '✓ Tracked';
-      btn.classList.add('added');
+      const date = new Date().toISOString().slice(0,10);
+      const r = await fetch('/api/my-numbers/add', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ num, lottery, tries:10, date })
+      });
+      if (r.ok) {
+        btn.textContent = '✓ Tracked';
+        btn.classList.add('added');
+        btn.dataset.date = date;
+      }
     }
+    btn.disabled = false;
     updateAllBtn(lottery);
   }
 
-  function addAllToSim(tabKey, allBtn) {
+  async function addAllToSim(tabKey, allBtn) {
     const cards = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
     const allTracked = cards.every(b => b.classList.contains('added') || b.classList.contains('already'));
-    if (allTracked) {
-      // Remove all
-      cards.forEach(btn => {
-        if (btn.classList.contains('added') || btn.classList.contains('already')) btn.click();
-      });
-      allBtn.textContent = '+ Track All 20';
-    } else {
-      // Add untracked
-      cards.forEach(btn => {
-        if (!btn.classList.contains('added') && !btn.classList.contains('already')) btn.click();
-      });
-      allBtn.textContent = '✓ Remove All';
+    allBtn.disabled = true;
+    allBtn.textContent = 'Working…';
+    for (const btn of cards) {
+      const isTracked = btn.classList.contains('added') || btn.classList.contains('already');
+      if (allTracked ? isTracked : !isTracked) {
+        const idParts = btn.id.split('-');          // asim-{lottery}-{num}
+        const num     = idParts[idParts.length - 1];
+        await addToSim(num, tabKey, btn);
+      }
     }
+    allBtn.disabled = false;
+    updateAllBtn(tabKey);
   }
 
   function updateAllBtn(tabKey) {
@@ -147,12 +153,16 @@
     allBtn.textContent = allTracked ? '✓ Remove All' : '+ Track All 20';
   }
 
-  function markTracked() {
-    simLoad().forEach(t => {
-      const btn = document.getElementById(`asim-${t.lottery}-${t.num}`);
-      if (btn) { btn.textContent = '✓ Tracked'; btn.classList.add('already'); }
-    });
-    ['all','damacai','magnum','toto'].forEach(updateAllBtn);
+  async function markTracked() {
+    try {
+      const r    = await fetch('/api/my-numbers');
+      const list = await r.json();
+      list.forEach(t => {
+        const btn = document.getElementById(`asim-${t.lottery}-${t.num}`);
+        if (btn) { btn.textContent = '✓ Tracked'; btn.classList.add('already'); btn.dataset.date = t.date; }
+      });
+      ['all','damacai','magnum','toto'].forEach(updateAllBtn);
+    } catch {}
   }
   document.addEventListener('DOMContentLoaded', markTracked);
 

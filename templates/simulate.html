@@ -17,7 +17,9 @@
         Add Number
       </div>
 
-      <input type="hidden" id="editKey" value="" />
+      <input type="hidden" id="editKeyNum" />
+      <input type="hidden" id="editKeyLot" />
+      <input type="hidden" id="editKeyDate" />
 
       <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">4-digit number</label>
       <input id="trackInput" class="number-input mb-3"
@@ -38,7 +40,7 @@
 
       <div class="d-flex gap-2">
         <button class="btn-search flex-grow-1" id="submit-btn" onclick="submitForm()">Add Number</button>
-        <button class="btn-clear" id="cancel-btn" onclick="cancelEdit()" title="Cancel" style="display:none">Cancel</button>
+        <button class="btn-clear" id="cancel-btn" onclick="cancelEdit()" style="display:none">Cancel</button>
         <button class="btn-clear" onclick="resetForm()" title="Clear">&#10005;</button>
       </div>
       <div id="add-msg" class="mt-2" style="font-size:.8rem;min-height:1.2rem"></div>
@@ -54,7 +56,7 @@
           &#128269; Check All
         </button>
       </div>
-      <p class="section-sub">Checked against 1st, 2nd &amp; 3rd prizes in real draws since added. Click <strong style="color:#aabbcc">Check All</strong> after each draw to see results.</p>
+      <p class="section-sub">Checked against 1st, 2nd &amp; 3rd prizes in real draws since added.</p>
 
       <div style="overflow-x:auto">
         <table class="table draw-table mb-0" id="my-table">
@@ -69,11 +71,7 @@
             </tr>
           </thead>
           <tbody id="my-numbers-body">
-            <tr id="empty-row">
-              <td colspan="6" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">
-                No numbers saved yet. Add one using the form.
-              </td>
-            </tr>
+            <tr><td colspan="6" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -105,17 +103,17 @@
   #my-table td.cell-date   { font-size:.72rem; color:#000000; white-space:nowrap; }
   .cell-result { font-size:.72rem; }
   .res-win     { color:#22c55e; font-weight:700; }
-  .res-miss    { color:#55667a; }
-  .res-done    { color:#8899aa; font-style:italic; }
-  .res-pending { color:#55667a; }
+  .res-miss    { color:#555555; }
+  .res-done    { color:#888888; font-style:italic; }
+  .res-pending { color:#aaaaaa; }
+  .checking    { color:#55aacc; font-style:italic; }
   .btn-tbl {
-    background:none; border:1px solid #2a3f55; color:#8899aa;
+    background:none; border:1px solid #cccccc; color:#555555;
     border-radius:5px; padding:.18rem .5rem; font-size:.7rem;
     cursor:pointer; transition:all .15s; white-space:nowrap;
   }
-  .btn-tbl:hover          { border-color:#55aacc; color:#55aacc; }
+  .btn-tbl:hover          { border-color:#333333; color:#000000; }
   .btn-tbl.btn-remove:hover { border-color:#f97316; color:#f97316; }
-  .checking { color:#55aacc; font-style:italic; }
 </style>
 
 <script>
@@ -123,6 +121,7 @@
   const triesInput = document.getElementById('triesInput');
   let selectedLot  = 'all';
   let editMode     = false;
+  let cachedList   = [];
 
   const LOT_LABELS   = { all:'All Lotteries', damacai:'DAMACAI', magnum:'MAGNUM', toto:'SPORTSTOTO' };
   const LOT_KEYWORDS = { damacai:'damacai', magnum:'magnum', toto:'toto' };
@@ -151,122 +150,121 @@
     if (type === 'success') setTimeout(() => document.getElementById('add-msg').innerHTML = '', 3000);
   }
 
-  /* ── localStorage ── */
-  const STORE_KEY = '4d_my_numbers_v3';
-  function loadList() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch { return []; } }
-  function saveList(l) { localStorage.setItem(STORE_KEY, JSON.stringify(l)); }
+  /* ── API helpers ── */
+  async function apiGet() {
+    const r = await fetch('/api/my-numbers');
+    return r.json();
+  }
+  async function apiAdd(entry) {
+    const r = await fetch('/api/my-numbers/add', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry)
+    });
+    return { ok: r.ok, data: await r.json() };
+  }
+  async function apiRemove(num, lottery, date) {
+    const r = await fetch('/api/my-numbers/remove', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ num, lottery, date })
+    });
+    return r.json();
+  }
+  async function apiUpdate(keyNum, keyLot, keyDate, lottery, tries) {
+    const r = await fetch('/api/my-numbers/update', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ key_num:keyNum, key_lottery:keyLot, key_date:keyDate, lottery, tries })
+    });
+    return r.json();
+  }
 
-  /* ── Form submit (add or save edit) ── */
-  function submitForm() {
+  /* ── Form submit ── */
+  async function submitForm() {
     const num   = trackInput.value.trim();
     const tries = parseInt(triesInput.value, 10) || 10;
     if (num.length !== 4) { showMsg('Please enter exactly 4 digits.', 'danger'); return; }
-    if (tries < 1)        { showMsg('Tries must be at least 1.', 'danger'); return; }
 
-    const list = loadList();
-    const key  = document.getElementById('editKey').value;
-
-    if (editMode && key) {
-      const idx = list.findIndex(t => entryKey(t) === key);
-      if (idx !== -1) {
-        list[idx].lottery = selectedLot;
-        list[idx].tries   = tries;
-      }
-      saveList(list);
+    if (editMode) {
+      const list = await apiUpdate(
+        document.getElementById('editKeyNum').value,
+        document.getElementById('editKeyLot').value,
+        document.getElementById('editKeyDate').value,
+        selectedLot, tries
+      );
+      cachedList = list;
       cancelEdit();
       showMsg('Entry updated.', 'success');
     } else {
-      if (list.some(t => t.num === num && t.lottery === selectedLot)) {
-        showMsg(`${num} (${LOT_LABELS[selectedLot]}) is already tracked.`, 'warning'); return;
-      }
-      list.unshift({ num, lottery: selectedLot, tries, date: today() });
-      saveList(list);
+      const { ok, data } = await apiAdd({ num, lottery: selectedLot, tries, date: today() });
+      if (!ok) { showMsg(data.error || 'Failed to add.', 'danger'); return; }
+      cachedList = data;
       resetForm();
       showMsg(`${num} added.`, 'success');
     }
-    renderTable();
+    renderTable(cachedList);
     checkAll();
   }
 
   function resetForm() {
-    trackInput.value = '';
-    triesInput.value = '10';
-    selectLot('all');
-    trackInput.focus();
+    trackInput.value = ''; triesInput.value = '10';
+    selectLot('all'); trackInput.focus();
     document.getElementById('add-msg').innerHTML = '';
   }
 
   function cancelEdit() {
     editMode = false;
-    document.getElementById('editKey').value = '';
     document.getElementById('form-title').textContent = 'Add Number';
     document.getElementById('submit-btn').textContent = 'Add Number';
     document.getElementById('cancel-btn').style.display = 'none';
     resetForm();
   }
 
-  /* ── Edit an entry ── */
-  function editEntry(key) {
-    const list = loadList();
-    const entry = list.find(t => entryKey(t) === key);
-    if (!entry) return;
-
+  /* ── Edit ── */
+  function editEntry(num, lottery, date, tries) {
     editMode = true;
-    document.getElementById('editKey').value = key;
-    trackInput.value    = entry.num;
-    triesInput.value    = entry.tries || 10;
-    selectLot(entry.lottery);
-
-    document.getElementById('form-title').textContent = `Editing ${entry.num}`;
+    document.getElementById('editKeyNum').value  = num;
+    document.getElementById('editKeyLot').value  = lottery;
+    document.getElementById('editKeyDate').value = date;
+    trackInput.value   = num;
+    triesInput.value   = tries;
+    selectLot(lottery);
+    document.getElementById('form-title').textContent = `Editing ${num}`;
     document.getElementById('submit-btn').textContent = 'Save Changes';
     document.getElementById('cancel-btn').style.display = '';
-
-    document.getElementById('entry-form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('entry-form').scrollIntoView({ behavior:'smooth', block:'start' });
   }
 
-  /* ── Remove an entry ── */
-  function removeEntry(key) {
-    saveList(loadList().filter(t => entryKey(t) !== key));
-    renderTable();
+  /* ── Remove ── */
+  async function removeEntry(num, lottery, date) {
+    cachedList = await apiRemove(num, lottery, date);
+    renderTable(cachedList);
   }
-
-  function entryKey(t) { return t.num + '|' + t.lottery + '|' + t.date; }
 
   /* ── Render table ── */
-  function renderTable(results) {
+  function renderTable(list, results) {
     results = results || {};
-    const list = loadList();
     const tbody = document.getElementById('my-numbers-body');
-
     if (!list.length) {
-      tbody.innerHTML = `<tr id="empty-row"><td colspan="6" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">No numbers saved yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">No numbers saved yet.</td></tr>`;
       return;
     }
-
     tbody.innerHTML = list.map(t => {
-      const key     = entryKey(t);
-      const tries   = t.tries || 10;
-      const res     = results[key];
-
-      let resultCell = '';
-      if (res === undefined) {
-        resultCell = '<span class="res-pending">—</span>';
-      } else if (res.checking) {
-        resultCell = '<span class="checking">checking…</span>';
-      } else if (res.wins && res.wins.length > 0) {
-        const w = res.wins[0];
-        resultCell = `<span class="res-win">&#127881; ${w.prize} &bull; ${w.date_fmt}</span>`;
-        if (res.wins.length > 1) resultCell += ` <span style="color:#55667a;font-size:.68rem">(+${res.wins.length-1} more)</span>`;
-      } else {
-        const checked = res.draws_checked || 0;
-        const done    = checked >= tries;
-        if (done) {
-          resultCell = `<span class="res-done">No wins in ${tries} draw${tries!==1?'s':''}</span>`;
+      const key    = `${t.num}|${t.lottery}|${t.date}`;
+      const tries  = t.tries || 10;
+      const res    = results[key];
+      let resultCell = '<span class="res-pending">—</span>';
+      if (res !== undefined) {
+        if (res.checking) {
+          resultCell = '<span class="checking">checking…</span>';
+        } else if (res.wins && res.wins.length > 0) {
+          const w = res.wins[0];
+          resultCell = `<span class="res-win">&#127881; ${w.prize} &bull; ${w.date_fmt}</span>`;
+          if (res.wins.length > 1) resultCell += ` <span style="color:#888;font-size:.68rem">(+${res.wins.length-1} more)</span>`;
         } else {
-          resultCell = `<span class="res-miss">No wins &bull; ${checked}/${tries} draws</span>`;
+          const checked = res.draws_checked || 0;
+          resultCell = checked >= tries
+            ? `<span class="res-done">No wins in ${tries} draw${tries!==1?'s':''}</span>`
+            : `<span class="res-miss">No wins &bull; ${checked}/${tries} draws</span>`;
         }
       }
-
       return `
         <tr>
           <td class="cell-num">${t.num}</td>
@@ -276,57 +274,51 @@
           <td class="cell-result">${resultCell}</td>
           <td>
             <div class="d-flex gap-1">
-              <button class="btn-tbl" onclick="editEntry('${key}')">&#9998; Edit</button>
-              <button class="btn-tbl btn-remove" onclick="removeEntry('${key}')">&#10005;</button>
+              <button class="btn-tbl" onclick="editEntry('${t.num}','${t.lottery}','${t.date}',${tries})">&#9998; Edit</button>
+              <button class="btn-tbl btn-remove" onclick="removeEntry('${t.num}','${t.lottery}','${t.date}')">&#10005;</button>
             </div>
           </td>
         </tr>`;
     }).join('');
   }
 
-  /* ── Check one entry ── */
+  /* ── Check one ── */
   async function checkOne(entry) {
     try {
-      const res  = await fetch(`/search?number=${encodeURIComponent(entry.num)}`);
-      const data = await res.json();
-      if (!res.ok) return { wins: [], draws_checked: 0 };
-
-      const TOPS   = ['1st Prize','2nd Prize','3rd Prize'];
-      const after  = entry.date;
-      const lotKey = entry.lottery;
-
-      const allAfter   = data.matches.filter(m => m.date > after);
-      const drawDates  = new Set(allAfter.map(m => m.date));
-
+      const r    = await fetch(`/search?number=${encodeURIComponent(entry.num)}`);
+      const data = await r.json();
+      if (!r.ok) return { wins:[], draws_checked:0 };
+      const TOPS  = ['1st Prize','2nd Prize','3rd Prize'];
+      const after = entry.date;
+      const allAfter  = data.matches.filter(m => m.date > after);
+      const drawDates = new Set(allAfter.map(m => m.date));
       const wins = allAfter.filter(m =>
         TOPS.includes(m.prize) &&
-        (lotKey === 'all' || m.lottery.toLowerCase().includes(LOT_KEYWORDS[lotKey]))
+        (entry.lottery === 'all' || m.lottery.toLowerCase().includes(LOT_KEYWORDS[entry.lottery]))
       );
-
       return { wins, draws_checked: drawDates.size };
-    } catch { return { wins: [], draws_checked: 0 }; }
+    } catch { return { wins:[], draws_checked:0 }; }
   }
 
   /* ── Check all ── */
   async function checkAll() {
-    const list = loadList();
-    if (!list.length) return;
-
-    // Show "checking…" immediately
+    if (!cachedList.length) return;
     const pending = {};
-    list.forEach(t => { pending[entryKey(t)] = { checking: true }; });
-    renderTable(pending);
-
+    cachedList.forEach(t => { pending[`${t.num}|${t.lottery}|${t.date}`] = { checking:true }; });
+    renderTable(cachedList, pending);
     const results = {};
-    await Promise.all(list.map(async t => {
-      results[entryKey(t)] = await checkOne(t);
+    await Promise.all(cachedList.map(async t => {
+      results[`${t.num}|${t.lottery}|${t.date}`] = await checkOne(t);
     }));
-    renderTable(results);
+    renderTable(cachedList, results);
   }
 
   /* ── Init ── */
-  renderTable();
-  if (loadList().length) checkAll();
+  apiGet().then(list => {
+    cachedList = list;
+    renderTable(list);
+    if (list.length) checkAll();
+  });
 </script>
 
 {% endblock %}
