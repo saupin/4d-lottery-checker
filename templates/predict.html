@@ -20,23 +20,37 @@
   <em>Lottery draws are independent random events — this is pattern analysis, not a guarantee.</em>
 </div>
 
-<!-- Top 20 predictions -->
-<div class="section-title mb-3">&#127941; Top 20 Predicted Numbers</div>
-<div class="predict-grid mb-5">
-  {% for r in top20 %}
-  <div class="predict-card">
-    <span class="predict-rank">#{{ r.rank }}</span>
-    <div class="predict-num">{{ r.num }}</div>
-    <div class="predict-bar-wrap">
-      <div class="predict-bar" style="width:{{ r.score_pct }}%; background:{{ r.colour }}"></div>
+<!-- Top 20 with lottery tabs -->
+<div class="section-title mb-2">&#127941; Top 20 Predicted Numbers</div>
+
+<ul class="nav analysis-tabs mb-0" id="predictTabs">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#ptab-all">All Lotteries</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ptab-damacai">DAMACAI</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ptab-magnum">MAGNUM</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#ptab-toto">SPORTSTOTO</button></li>
+</ul>
+
+<div class="tab-content mb-5">
+  {% for tab_key, tab_label in [('all','All Lotteries'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
+  <div class="tab-pane fade {% if tab_key == 'all' %}show active{% endif %}" id="ptab-{{ tab_key }}">
+    <div class="predict-grid mt-3">
+      {% for r in top20s[tab_key] %}
+      <div class="predict-card">
+        <span class="predict-rank">#{{ r.rank }}</span>
+        <div class="predict-num">{{ r.num }}</div>
+        <div class="predict-bar-wrap">
+          <div class="predict-bar" style="width:{{ r.score_pct }}%; background:{{ r.colour }}"></div>
+        </div>
+        <div class="predict-score">{{ r.percentile }}th pct</div>
+        <div>
+          <span class="confidence-badge" style="color:{{ r.colour }}">{{ r.label }}</span>
+        </div>
+        {% if r.count > 0 %}
+        <div style="font-size:.65rem;color:#55667a;margin-top:.3rem">Won {{ r.count }}× &bull; {{ r.last_seen_fmt }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
     </div>
-    <div class="predict-score">{{ r.percentile }}th pct</div>
-    <div>
-      <span class="confidence-badge" style="color:{{ r.colour }}">{{ r.label }}</span>
-    </div>
-    {% if r.count > 0 %}
-    <div style="font-size:.65rem;color:#55667a;margin-top:.3rem">Won {{ r.count }}× &bull; {{ r.last_seen_fmt }}</div>
-    {% endif %}
   </div>
   {% endfor %}
 </div>
@@ -50,6 +64,18 @@
       <input id="predictInput" class="number-input mb-3"
              type="text" inputmode="numeric" pattern="\d{4}"
              maxlength="4" placeholder="0000" autocomplete="off" />
+
+      <!-- Lottery selector -->
+      <div class="mb-3">
+        <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">Score against</label>
+        <div class="d-flex gap-2 flex-wrap">
+          {% for key, label in [('all','All Lotteries'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
+          <span class="filter-pill {% if key == 'all' %}active{% endif %}"
+                id="lot-{{ key }}" onclick="selectLottery('{{ key }}')">{{ label }}</span>
+          {% endfor %}
+        </div>
+      </div>
+
       <div class="d-flex gap-2">
         <button class="btn-search flex-grow-1" onclick="checkNumber()">Check Probability</button>
         <button class="btn-clear" onclick="clearPredict()" title="Clear">&#10005;</button>
@@ -66,14 +92,24 @@
 
 <script>
   const pinput = document.getElementById('predictInput');
+  let selectedLottery = 'all';
+
   pinput.addEventListener('input', () => { pinput.value = pinput.value.replace(/\D/g,'').slice(0,4); });
   pinput.addEventListener('keydown', e => { if (e.key === 'Enter') checkNumber(); });
+
+  function selectLottery(key) {
+    selectedLottery = key;
+    document.querySelectorAll('[id^="lot-"]').forEach(el => el.classList.remove('active'));
+    document.getElementById('lot-' + key).classList.add('active');
+  }
 
   function clearPredict() {
     pinput.value = '';
     document.getElementById('predict-result').innerHTML = '';
     pinput.focus();
   }
+
+  const LOTTERY_LABELS = { all: 'All Lotteries', damacai: 'DAMACAI', magnum: 'MAGNUM', toto: 'SPORTSTOTO' };
 
   async function checkNumber() {
     const num = pinput.value.trim();
@@ -83,7 +119,7 @@
     document.getElementById('predict-result').innerHTML = '';
 
     try {
-      const res  = await fetch(`/api/score?number=${encodeURIComponent(num)}`);
+      const res  = await fetch(`/api/score?number=${encodeURIComponent(num)}&lottery=${selectedLottery}`);
       const data = await res.json();
       if (!res.ok) { showPredictError(data.error || 'Score failed.'); return; }
 
@@ -110,10 +146,11 @@
 
       document.getElementById('predict-result').innerHTML = `
         <div class="check-result-card">
-          <div class="d-flex align-items-center gap-4 mb-3">
+          <div class="d-flex align-items-center gap-4 mb-3 flex-wrap">
             <div>
               <div class="check-num-display">${num}</div>
-              <div style="font-size:.78rem;color:#8899aa;margin-top:.25rem">${seenLine}</div>
+              <div style="font-size:.75rem;color:#55aacc;margin-top:.15rem">${LOTTERY_LABELS[selectedLottery]}</div>
+              <div style="font-size:.78rem;color:#8899aa;margin-top:.2rem">${seenLine}</div>
             </div>
             <div class="text-center">
               <div class="check-pct" style="color:${colour}">${data.percentile}%</div>

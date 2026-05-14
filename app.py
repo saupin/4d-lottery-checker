@@ -222,15 +222,16 @@ def next_draw_date() -> str:
     return ""
 
 
-def build_prediction_model(data: dict) -> dict:
+def build_prediction_model(data: dict, lottery: str | None = None) -> dict:
     tiers = ["1st", "2nd", "3rd"]
     pos_counts = [{str(d): 0 for d in range(10)} for _ in range(4)]
     hist_counts: Counter = Counter()
     appearances: dict = defaultdict(list)
+    keys = [lottery] if lottery else LOTTERY_ORDER
 
     for date_str in sorted(data.keys()):
         day = data[date_str]
-        for key in LOTTERY_ORDER:
+        for key in keys:
             lot = day.get(key)
             if not lot:
                 continue
@@ -345,24 +346,30 @@ def get_ranked_scores(model: dict) -> list[dict]:
     return results
 
 
+LOTTERY_KEYS = {"all": None, "damacai": "damacai", "magnum": "magnum", "toto": "toto"}
+
+
 @app.route("/predict")
 def predict():
     data = load_results()
-    model = build_prediction_model(data)
-    ranked = get_ranked_scores(model)
-    top20 = ranked[:20]
-    rank_lookup = {r["num"]: r for r in ranked}
-    return render_template("predict.html", top20=top20, total_dates=len(data),
+    top20s = {}
+    for key, lot in LOTTERY_KEYS.items():
+        model = build_prediction_model(data, lot)
+        top20s[key] = get_ranked_scores(model)[:20]
+    return render_template("predict.html", top20s=top20s, total_dates=len(data),
                            next_draw=next_draw_date(), active_page="predict")
 
 
 @app.route("/api/score")
 def api_score():
     number = request.args.get("number", "").strip()
+    lottery = request.args.get("lottery", "all").strip()
     if not number.isdigit() or len(number) != 4:
         return jsonify({"error": "Enter a valid 4-digit number"}), 400
+    if lottery not in LOTTERY_KEYS:
+        lottery = "all"
     data = load_results()
-    model = build_prediction_model(data)
+    model = build_prediction_model(data, LOTTERY_KEYS[lottery])
     ranked = get_ranked_scores(model)
     rank_map = {r["num"]: r for r in ranked}
     return jsonify(rank_map[number])
