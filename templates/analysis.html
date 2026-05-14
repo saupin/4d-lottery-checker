@@ -79,4 +79,124 @@
   {% endfor %}
 </div>
 
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- Section 1: Digit Position Frequency                   -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section-card mt-4">
+  <div class="section-title">&#127919; Digit Position Frequency</div>
+  <p class="section-sub">Which digit (0–9) appears most often in each of the 4 positions across all 1st, 2nd &amp; 3rd prizes?</p>
+  <div class="row g-3">
+    {% for pos_data in ext.pos_freq %}
+    <div class="col-6 col-md-3">
+      <div class="pos-card">
+        <div class="pos-heading">Position {{ loop.index }}</div>
+        {% set max_pct = pos_data[0].pct %}
+        {% for item in pos_data %}
+        <div class="pos-row">
+          <span class="pos-digit">{{ item.digit }}</span>
+          <div class="pos-bar-wrap">
+            <div class="pos-bar" style="width:{{ (item.pct / max_pct * 100) | round | int if max_pct else 0 }}%"></div>
+          </div>
+          <span class="pos-pct">{{ item.pct }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- Section 2: Hot & Cold Numbers                          -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="row g-3 mt-1">
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-title">&#128293; Hot Numbers</div>
+      <p class="section-sub">Most recently seen as a top-3 prize winner</p>
+      {% for item in ext.hot %}
+      <div class="hc-row">
+        <span class="hc-num">{{ item.num }}</span>
+        <span class="hc-date">{{ item.date }}</span>
+        <span class="hc-badge hot-badge">{{ item.days_ago }}d ago</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-title">&#10052; Cold Numbers</div>
+      <p class="section-sub">Longest since last appearing as a top-3 prize winner</p>
+      {% for item in ext.cold %}
+      <div class="hc-row">
+        <span class="hc-num">{{ item.num }}</span>
+        <span class="hc-date">{{ item.date }}</span>
+        <span class="hc-badge cold-badge">{{ item.days_ago }}d ago</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- Section 3: Digit Sum Distribution                     -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section-card mt-3">
+  <div class="section-title">&#8721; Digit Sum Distribution</div>
+  <p class="section-sub">Sum of all 4 digits of each winning number (range 0–36). Peak at <strong style="color:#f5c518">{{ ext.sum_peak }}</strong>.</p>
+  <div class="sum-chart">
+    {% for s, cnt in ext.sum_list %}
+    <div class="sum-col" title="Sum {{ s }}: {{ cnt }} wins">
+      <div class="sum-bar {% if s == ext.sum_peak %}sum-peak{% endif %}"
+           style="height:{{ (cnt / ext.sum_max * 100) | round | int if ext.sum_max else 0 }}%"></div>
+      <div class="sum-label {% if cnt == 0 %}sum-zero{% endif %}">{{ s }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- Section 4 & 5: Even/Odd Balance + Repeat Patterns     -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="row g-3 mt-1 mb-4">
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-title">&#9898; Even / Odd Balance</div>
+      <p class="section-sub">How many even digits does a typical winning number contain?</p>
+      {% set eo_max = ext.balance | map(attribute=2) | max %}
+      {% for label, cnt, pct in ext.balance %}
+      <div class="eo-row">
+        <span class="eo-label">{{ label }}</span>
+        <div class="pos-bar-wrap">
+          <div class="eo-bar" style="width:{{ (pct / eo_max * 100) | round | int if eo_max else 0 }}%"></div>
+        </div>
+        <span class="eo-pct">{{ pct }}%</span>
+        <span class="eo-cnt">({{ cnt }})</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-title">&#127183; Repeat Digit Patterns</div>
+      <p class="section-sub">How often do winning numbers contain repeated digits?</p>
+      {% set pat_max = ext.patterns[0][2] if ext.patterns else 1 %}
+      {% for label, cnt, pct in ext.patterns %}
+      <div class="eo-row">
+        <span class="eo-label" style="min-width:145px">{{ label }}</span>
+        <div class="pos-bar-wrap">
+          <div class="pat-bar" style="width:{{ (pct / pat_max * 100) | round | int if pat_max else 0 }}%"></div>
+        </div>
+        <span class="eo-pct">{{ pct }}%</span>
+      </div>
+      {% endfor %}
+      {% if ext.quads %}
+      <div class="quads-note">
+        Four of a kind winners: {% for q in ext.quads %}<span class="quad-num">{{ q }}</span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
 {% endblock %}

@@ -113,12 +113,111 @@ def index():
     return render_template("index.html", recent=recent, total_dates=total_dates, active_page="results")
 
 
+def compute_extended_stats(data: dict) -> dict:
+    today = datetime.today().date()
+    tiers = ["1st", "2nd", "3rd"]
+
+    pos_freq = [{str(d): 0 for d in range(10)} for _ in range(4)]
+    sum_dist = Counter()
+    balance  = Counter()
+    patterns = Counter()
+    quads    = set()
+    last_seen: dict[str, str] = {}   # number → most recent date string
+
+    for date_str in sorted(data.keys()):
+        day = data[date_str]
+        for key in LOTTERY_ORDER:
+            lot = day.get(key)
+            if not lot:
+                continue
+            prizes = lot.get("prizes", {})
+            for t in tiers:
+                num = prizes.get(t)
+                if not num or len(num) != 4 or not num.isdigit():
+                    continue
+                # Position frequency
+                for i, d in enumerate(num):
+                    pos_freq[i][d] += 1
+                # Digit sum
+                sum_dist[sum(int(d) for d in num)] += 1
+                # Even/odd balance
+                balance[sum(1 for d in num if int(d) % 2 == 0)] += 1
+                # Repeat pattern
+                unique = len(set(num))
+                if unique == 4:
+                    pat = "All Different"
+                elif unique == 3:
+                    pat = "One Pair"
+                elif unique == 2:
+                    pat = "Two Pairs" if max(Counter(num).values()) == 2 else "Three of a Kind"
+                else:
+                    pat = "Four of a Kind"
+                    quads.add(num)
+                patterns[pat] += 1
+                # Hot / cold tracking
+                last_seen[num] = date_str
+
+    total = sum(sum_dist.values())
+
+    # Normalise position freq to sorted list of (digit, count, pct)
+    pos_freq_out = []
+    for pos in range(4):
+        pos_total = sum(pos_freq[pos].values())
+        sorted_digits = sorted(pos_freq[pos].items(), key=lambda x: -x[1])
+        pos_freq_out.append([
+            {"digit": d, "count": c, "pct": round(c / pos_total * 100, 1) if pos_total else 0}
+            for d, c in sorted_digits
+        ])
+
+    # Hot & Cold — compute days_ago from last_seen date
+    hot = sorted(last_seen, key=last_seen.get, reverse=True)[:10]
+    cold = sorted(last_seen, key=last_seen.get)[:10]
+    def enrich(nums):
+        out = []
+        for n in nums:
+            ds = last_seen[n]
+            d = datetime.strptime(ds, "%Y-%m-%d").date()
+            out.append({"num": n, "date": datetime.strptime(ds, "%Y-%m-%d").strftime("%d %b %Y"),
+                        "days_ago": (today - d).days})
+        return out
+
+    # Digit sum: sorted list of [sum_val, count]
+    sum_list = [[s, sum_dist[s]] for s in range(37)]
+    sum_peak = max(sum_dist, key=sum_dist.get) if sum_dist else 18
+    sum_max  = max(sum_dist.values()) if sum_dist else 1
+
+    # Pattern breakdown with percentage
+    pattern_order = ["All Different", "One Pair", "Two Pairs", "Three of a Kind", "Four of a Kind"]
+    pattern_list = [(p, patterns[p], round(patterns[p] / total * 100, 1) if total else 0)
+                    for p in pattern_order if p in patterns]
+
+    # Balance labels
+    balance_labels = {0: "All Odd", 1: "1 Even", 2: "2 Even", 3: "3 Even", 4: "All Even"}
+    balance_list = [(balance_labels[k], balance[k], round(balance[k] / total * 100, 1) if total else 0)
+                    for k in range(5)]
+
+    return {
+        "pos_freq":   pos_freq_out,
+        "pos_total":  total,
+        "hot":        enrich(hot),
+        "cold":       enrich(cold),
+        "sum_list":   sum_list,
+        "sum_peak":   sum_peak,
+        "sum_max":    sum_max,
+        "balance":    balance_list,
+        "patterns":   pattern_list,
+        "quads":      sorted(quads),
+        "total":      total,
+    }
+
+
 @app.route("/analysis")
 def analysis():
     data = load_results()
     stats, counts = compute_stats(data)
+    ext = compute_extended_stats(data)
     return render_template("analysis.html", stats=stats, counts=counts,
-                           total_dates=len(data), active_page="analysis")
+                           ext=ext, total_dates=len(data), active_page="analysis")
 
 
 @app.route("/search")
