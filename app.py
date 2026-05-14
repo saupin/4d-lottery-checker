@@ -275,12 +275,12 @@ def build_prediction_model(data: dict, lottery: str | None = None) -> dict:
     }
 
 
-def _colour(percentile: float) -> tuple[str, str]:
-    if percentile >= 95:  return ("#f5c518", "Very High")
-    if percentile >= 80:  return ("#22c55e", "High")
-    if percentile >= 60:  return ("#06b6d4", "Above Average")
-    if percentile >= 40:  return ("#f59e0b", "Average")
-    if percentile >= 20:  return ("#f97316", "Below Average")
+def _colour(score_pct: float) -> tuple[str, str]:
+    if score_pct >= 70:  return ("#f5c518", "Very High")
+    if score_pct >= 50:  return ("#22c55e", "High")
+    if score_pct >= 35:  return ("#06b6d4", "Above Average")
+    if score_pct >= 20:  return ("#f59e0b", "Average")
+    if score_pct >= 10:  return ("#f97316", "Below Average")
     return ("#64748b", "Low")
 
 
@@ -313,7 +313,7 @@ def score_number(num: str, model: dict) -> dict:
     else:
         gap_norm = 0.4
 
-    composite = 0.25 * pos_norm + 0.35 * hist_norm + 0.25 * recency_norm + 0.15 * gap_norm
+    composite = 0.15 * pos_norm + 0.60 * hist_norm + 0.15 * recency_norm + 0.10 * gap_norm
 
     return {
         "num": num,
@@ -335,14 +335,16 @@ def get_ranked_scores(model: dict) -> list[dict]:
         results.append(s)
     results.sort(key=lambda x: x["composite"], reverse=True)
     total = len(results)
+    top_composite = results[0]["composite"] if results else 1
     for rank, r in enumerate(results, 1):
         percentile = round((1 - rank / total) * 100, 1)
-        colour, label = _colour(percentile)
+        score_pct = round(r["composite"] / top_composite * 100, 1)
+        colour, label = _colour(score_pct)
         r["rank"] = rank
         r["percentile"] = percentile
+        r["score_pct"] = score_pct
         r["colour"] = colour
         r["label"] = label
-        r["score_pct"] = round(r["composite"] / results[0]["composite"] * 100, 1)
     return results
 
 

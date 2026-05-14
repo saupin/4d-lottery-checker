@@ -132,8 +132,15 @@
       ];
 
       const seenLine = data.last_seen_fmt === 'Never'
-        ? '<span style="color:#64748b">Never appeared as a top-3 prize</span>'
-        : `Last won: <strong>${data.last_seen_fmt}</strong> &bull; appeared <strong>${data.count}</strong> time${data.count !== 1 ? 's' : ''}`;
+        ? `<span style="color:#64748b">Never appeared as a top-3 prize in ${LOTTERY_LABELS[selectedLottery]}</span>`
+        : `Won <strong>${data.count}</strong> time${data.count !== 1 ? 's' : ''} in ${LOTTERY_LABELS[selectedLottery]} &bull; last: <strong>${data.last_seen_fmt}</strong>`;
+
+      const factors = [
+        { name: 'Historical Frequency (60%)', val: data.hist_norm },
+        { name: 'Recency (15%)',              val: data.recency_norm },
+        { name: 'Positional Pattern (15%)',   val: data.pos_norm },
+        { name: 'Gap / Due (10%)',            val: data.gap_norm },
+      ];
 
       const factorRows = factors.map(f => `
         <div class="factor-row">
@@ -153,9 +160,9 @@
               <div style="font-size:.78rem;color:#8899aa;margin-top:.2rem">${seenLine}</div>
             </div>
             <div class="text-center">
-              <div class="check-pct" style="color:${colour}">${data.percentile}%</div>
+              <div class="check-pct" style="color:${colour}">${data.score_pct}%</div>
               <div class="check-label" style="color:${colour}">${data.label}</div>
-              <div class="check-rank">Rank #${data.rank} of 10,000</div>
+              <div class="check-rank">Percentile ${data.percentile}th &bull; Rank #${data.rank} of 10,000</div>
             </div>
           </div>
           <div style="font-size:.75rem;color:#8899aa;margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.6px">Factor Breakdown</div>
