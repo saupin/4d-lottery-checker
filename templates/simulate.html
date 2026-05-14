@@ -83,17 +83,26 @@
 </div>
 
 <style>
+  #my-table { background:#ffffff; }
   #my-table thead th {
-    font-size:.72rem; color:#8899aa; text-transform:uppercase; letter-spacing:.5px;
-    background:#1f3248; border:none; padding:.5rem .75rem;
+    font-size:.72rem; color:#333333; text-transform:uppercase; letter-spacing:.5px;
+    background:#e8e8e8; border:none; padding:.5rem .75rem;
   }
   #my-table tbody td {
-    border-color:#243447; vertical-align:middle; padding:.55rem .75rem; font-size:.85rem;
+    background:#ffffff; border-color:#dddddd; color:#000000;
+    vertical-align:middle; padding:.55rem .75rem; font-size:.85rem;
+    transition: background .15s, color .15s;
   }
-  #my-table td.cell-num    { font-family:monospace; font-weight:700; font-size:1rem; color:#ffffff; }
-  #my-table td.cell-lot    { font-size:.72rem; font-weight:600; color:#ffffff; }
-  #my-table td.cell-tries  { font-size:.78rem; color:#ffffff; white-space:nowrap; }
-  #my-table td.cell-date   { font-size:.72rem; color:#ffffff; white-space:nowrap; }
+  #my-table tbody tr:hover td { background:#000000 !important; color:#ffffff !important; }
+  #my-table tbody tr:hover .tracked-win,
+  #my-table tbody tr:hover .tracked-miss,
+  #my-table tbody tr:hover .res-win,
+  #my-table tbody tr:hover .res-miss,
+  #my-table tbody tr:hover .res-done   { color:#ffffff !important; }
+  #my-table td.cell-num    { font-family:monospace; font-weight:700; font-size:1rem; color:#000000; }
+  #my-table td.cell-lot    { font-size:.72rem; font-weight:600; color:#000000; }
+  #my-table td.cell-tries  { font-size:.78rem; color:#000000; white-space:nowrap; }
+  #my-table td.cell-date   { font-size:.72rem; color:#000000; white-space:nowrap; }
   .cell-result { font-size:.72rem; }
   .res-win     { color:#22c55e; font-weight:700; }
   .res-miss    { color:#55667a; }
