@@ -272,6 +272,54 @@
       padding: 1rem 1.25rem; font-size: .8rem; color: #8899aa; margin-bottom: 1.25rem;
     }
     .algo-card strong { color: #aabbcc; }
+
+    /* ── Simulation page ── */
+    .sim-input {
+      background: #0f1923; border: 2px solid #2a3f55; color: #fff;
+      font-size: 1rem; font-weight: 600; border-radius: 10px;
+      padding: .55rem 1rem; width: 100%; transition: border-color .2s;
+    }
+    .sim-input:focus { outline: none; border-color: #f5c518; }
+    .sim-stats-row {
+      display: flex; gap: 1rem; flex-wrap: wrap;
+    }
+    .sim-stat {
+      flex: 1; min-width: 90px; background: #0f1923; border-radius: 8px;
+      padding: .6rem .8rem; text-align: center; border: 1px solid #1e3048;
+    }
+    .sim-stat-val { font-size: 1.2rem; font-weight: 800; color: #f5c518; line-height: 1.2; }
+    .sim-stat-lbl { font-size: .62rem; color: #55667a; text-transform: uppercase;
+                    letter-spacing: .4px; margin-top: .15rem; }
+    .draw-tape { display: flex; flex-wrap: wrap; gap: 3px; margin-top: .3rem; }
+    .draw-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #1e3048; border: 1px solid #2a3f55; flex-shrink: 0;
+    }
+    .draw-dot.draw-hit { background: #f5c518; border-color: #f5c518; }
+    .tracked-card {
+      background: #172130; border: 1px solid #243447; border-radius: 10px;
+      padding: .85rem 1rem; margin-bottom: .6rem;
+      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    }
+    .tracked-num  { font-family: monospace; font-weight: 700; font-size: 1.1rem;
+                    color: #f5c518; min-width: 44px; }
+    .tracked-lot  { font-size: .72rem; color: #55aacc; font-weight: 600; min-width: 80px; }
+    .tracked-date { font-size: .72rem; color: #55667a; flex: 1; }
+    .tracked-result { font-size: .75rem; font-weight: 700; }
+    .tracked-win  { color: #22c55e; }
+    .tracked-miss { color: #55667a; }
+    .btn-sm-remove {
+      background: none; border: 1px solid #2a3f55; color: #55667a;
+      border-radius: 6px; padding: .2rem .5rem; font-size: .72rem; cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-sm-remove:hover { border-color: #f97316; color: #f97316; }
+    .btn-track {
+      background: rgba(245,197,24,.12); border: 1px solid #f5c518; color: #f5c518;
+      border-radius: 8px; padding: .5rem 1.2rem; font-size: .82rem;
+      font-weight: 700; cursor: pointer; transition: all .15s; margin-top: .75rem;
+    }
+    .btn-track:hover { background: rgba(245,197,24,.22); }
   </style>
 </head>
 <body>
@@ -283,6 +331,7 @@
     <a href="/" class="nav-link {% if active_page == 'results' %}active{% endif %}">Results</a>
     <a href="/analysis" class="nav-link {% if active_page == 'analysis' %}active{% endif %}">Analysis</a>
     <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
+    <a href="/simulate" class="nav-link {% if active_page == 'simulate' %}active{% endif %}">Simulation</a>
   </div>
 </nav>
 
