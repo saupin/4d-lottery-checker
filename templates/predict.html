@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}4D Lottery — Predict{% endblock %}
+
+{% block header %}
+  <h1>&#128302; Next Draw Prediction</h1>
+  <p>Pattern-based scoring across {{ total_dates }} draw dates &mdash; next draw: <strong style="color:#f5c518">{{ next_draw }}</strong></p>
+{% endblock %}
+
+{% block content %}
+
+<!-- Algorithm explanation -->
+<div class="algo-card">
+  <strong>How the score is calculated:</strong>
+  Composite of four factors &mdash;
+  <strong>Positional probability</strong> (25%): how common is each digit at each position;
+  <strong>Historical frequency</strong> (35%): how many times this exact number has won;
+  <strong>Recency</strong> (25%): exponential decay from last win date;
+  <strong>Gap / Due</strong> (15%): how overdue relative to its own average win interval.
+  <em>Lottery draws are independent random events — this is pattern analysis, not a guarantee.</em>
+</div>
+
+<!-- Top 20 predictions -->
+<div class="section-title mb-3">&#127941; Top 20 Predicted Numbers</div>
+<div class="predict-grid mb-5">
+  {% for r in top20 %}
+  <div class="predict-card">
+    <span class="predict-rank">#{{ r.rank }}</span>
+    <div class="predict-num">{{ r.num }}</div>
+    <div class="predict-bar-wrap">
+      <div class="predict-bar" style="width:{{ r.score_pct }}%; background:{{ r.colour }}"></div>
+    </div>
+    <div class="predict-score">{{ r.percentile }}th pct</div>
+    <div>
+      <span class="confidence-badge" style="color:{{ r.colour }}">{{ r.label }}</span>
+    </div>
+    {% if r.count > 0 %}
+    <div style="font-size:.65rem;color:#55667a;margin-top:.3rem">Won {{ r.count }}× &bull; {{ r.last_seen_fmt }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Check any number -->
+<div class="section-title mb-3">&#128269; Check Any Number</div>
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="search-card">
+      <label class="mb-2 d-block">Enter a 4-digit number to score</label>
+      <input id="predictInput" class="number-input mb-3"
+             type="text" inputmode="numeric" pattern="\d{4}"
+             maxlength="4" placeholder="0000" autocomplete="off" />
+      <div class="d-flex gap-2">
+        <button class="btn-search flex-grow-1" onclick="checkNumber()">Check Probability</button>
+        <button class="btn-clear" onclick="clearPredict()" title="Clear">&#10005;</button>
+      </div>
+    </div>
+
+    <div id="predict-spinner" class="text-center mt-3" style="display:none">
+      <div class="spin"></div>
+    </div>
+
+    <div id="predict-result"></div>
+  </div>
+</div>
+
+<script>
+  const pinput = document.getElementById('predictInput');
+  pinput.addEventListener('input', () => { pinput.value = pinput.value.replace(/\D/g,'').slice(0,4); });
+  pinput.addEventListener('keydown', e => { if (e.key === 'Enter') checkNumber(); });
+
+  function clearPredict() {
+    pinput.value = '';
+    document.getElementById('predict-result').innerHTML = '';
+    pinput.focus();
+  }
+
+  async function checkNumber() {
+    const num = pinput.value.trim();
+    if (num.length !== 4) { showPredictError('Please enter exactly 4 digits.'); return; }
+
+    document.getElementById('predict-spinner').style.display = 'block';
+    document.getElementById('predict-result').innerHTML = '';
+
+    try {
+      const res  = await fetch(`/api/score?number=${encodeURIComponent(num)}`);
+      const data = await res.json();
+      if (!res.ok) { showPredictError(data.error || 'Score failed.'); return; }
+
+      const colour = data.colour;
+      const factors = [
+        { name: 'Positional Probability (25%)', val: data.pos_norm },
+        { name: 'Historical Frequency (35%)',   val: data.hist_norm },
+        { name: 'Recency (25%)',                val: data.recency_norm },
+        { name: 'Gap / Due (15%)',              val: data.gap_norm },
+      ];
+
+      const seenLine = data.last_seen_fmt === 'Never'
+        ? '<span style="color:#64748b">Never appeared as a top-3 prize</span>'
+        : `Last won: <strong>${data.last_seen_fmt}</strong> &bull; appeared <strong>${data.count}</strong> time${data.count !== 1 ? 's' : ''}`;
+
+      const factorRows = factors.map(f => `
+        <div class="factor-row">
+          <span class="factor-name">${f.name}</span>
+          <div class="factor-bar-wrap">
+            <div class="factor-bar" style="width:${f.val}%; background:${colour}"></div>
+          </div>
+          <span class="factor-pct">${f.val}%</span>
+        </div>`).join('');
+
+      document.getElementById('predict-result').innerHTML = `
+        <div class="check-result-card">
+          <div class="d-flex align-items-center gap-4 mb-3">
+            <div>
+              <div class="check-num-display">${num}</div>
+              <div style="font-size:.78rem;color:#8899aa;margin-top:.25rem">${seenLine}</div>
+            </div>
+            <div class="text-center">
+              <div class="check-pct" style="color:${colour}">${data.percentile}%</div>
+              <div class="check-label" style="color:${colour}">${data.label}</div>
+              <div class="check-rank">Rank #${data.rank} of 10,000</div>
+            </div>
+          </div>
+          <div style="font-size:.75rem;color:#8899aa;margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.6px">Factor Breakdown</div>
+          ${factorRows}
+        </div>`;
+
+    } catch (err) {
+      showPredictError('Network error. Is the server running?');
+    } finally {
+      document.getElementById('predict-spinner').style.display = 'none';
+    }
+  }
+
+  function showPredictError(msg) {
+    document.getElementById('predict-spinner').style.display = 'none';
+    document.getElementById('predict-result').innerHTML =
+      `<div class="alert alert-danger alert-result mt-3">${msg}</div>`;
+  }
+</script>
+
+{% endblock %}

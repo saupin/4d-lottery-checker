@@ -231,6 +231,47 @@
     .quads-note { margin-top: .75rem; font-size: .75rem; color: #8899aa; }
     .quad-num { font-family: monospace; font-weight: 700; color: #f5c518;
                 margin-right: .4rem; }
+
+    /* ── Predict page ── */
+    .predict-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .75rem; }
+    .predict-card {
+      background: #172130; border: 1px solid #243447; border-radius: 10px;
+      padding: .9rem .75rem; text-align: center; position: relative;
+      transition: border-color .2s, transform .15s;
+    }
+    .predict-card:hover { transform: translateY(-2px); border-color: #3a5070; }
+    .predict-rank { position: absolute; top: .45rem; left: .55rem; font-size: .65rem;
+                    color: #55667a; font-weight: 700; }
+    .predict-num  { font-family: monospace; font-size: 1.5rem; font-weight: 700;
+                    color: #e8eaf0; letter-spacing: .1rem; margin: .3rem 0; }
+    .predict-bar-wrap { background: #0f1923; border-radius: 3px; height: 4px; margin: .4rem 0; overflow: hidden; }
+    .predict-bar { height: 100%; border-radius: 3px; }
+    .predict-score { font-size: .72rem; color: #8899aa; }
+    .confidence-badge {
+      display: inline-block; border-radius: 20px; font-size: .7rem; font-weight: 700;
+      padding: .2rem .65rem; margin-top: .35rem; border: 1px solid currentColor;
+    }
+
+    .check-result-card {
+      background: #172130; border: 1px solid #243447; border-radius: 14px;
+      padding: 1.5rem; margin-top: 1rem;
+    }
+    .check-num-display { font-family: monospace; font-size: 2.5rem; font-weight: 700;
+                         letter-spacing: .5rem; color: #e8eaf0; }
+    .check-pct { font-size: 3rem; font-weight: 900; line-height: 1; }
+    .check-label { font-size: .85rem; font-weight: 700; margin-top: .2rem; }
+    .check-rank { font-size: .78rem; color: #8899aa; margin-top: .25rem; }
+    .factor-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
+    .factor-name { font-size: .75rem; color: #aabbcc; min-width: 130px; }
+    .factor-bar-wrap { flex: 1; background: #0f1923; border-radius: 3px; height: 6px; overflow: hidden; }
+    .factor-bar { height: 100%; border-radius: 3px; background: #f5c518; }
+    .factor-pct { font-size: .72rem; color: #8899aa; width: 38px; text-align: right; }
+
+    .algo-card {
+      background: #0f1923; border: 1px solid #1e3048; border-radius: 10px;
+      padding: 1rem 1.25rem; font-size: .8rem; color: #8899aa; margin-bottom: 1.25rem;
+    }
+    .algo-card strong { color: #aabbcc; }
   </style>
 </head>
 <body>
@@ -241,6 +282,7 @@
     <span style="color:#f5c518;font-weight:700;margin-right:.75rem;">&#127922; 4D</span>
     <a href="/" class="nav-link {% if active_page == 'results' %}active{% endif %}">Results</a>
     <a href="/analysis" class="nav-link {% if active_page == 'analysis' %}active{% endif %}">Analysis</a>
+    <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
   </div>
 </nav>
 

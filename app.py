@@ -5,9 +5,10 @@ Reads lot_results.json and lets users check a 4-digit number for prizes.
 """
 
 import json
+import math
 import os
-from collections import Counter
-from datetime import datetime
+from collections import Counter, defaultdict
+from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
@@ -23,6 +24,7 @@ PRIZE_LABEL = {
     "consolation": "Consolation",
 }
 LOTTERY_ORDER = ["damacai", "magnum", "toto"]
+DRAW_DAYS = {2, 5, 6}  # Wednesday, Saturday, Sunday
 
 
 def load_results() -> dict:
@@ -209,6 +211,161 @@ def compute_extended_stats(data: dict) -> dict:
         "quads":      sorted(quads),
         "total":      total,
     }
+
+
+def next_draw_date() -> str:
+    day = datetime.today() + timedelta(days=1)
+    for _ in range(7):
+        if day.weekday() in DRAW_DAYS:
+            return day.strftime("%a, %d %b %Y")
+        day += timedelta(days=1)
+    return ""
+
+
+def build_prediction_model(data: dict) -> dict:
+    tiers = ["1st", "2nd", "3rd"]
+    pos_counts = [{str(d): 0 for d in range(10)} for _ in range(4)]
+    hist_counts: Counter = Counter()
+    appearances: dict = defaultdict(list)
+
+    for date_str in sorted(data.keys()):
+        day = data[date_str]
+        for key in LOTTERY_ORDER:
+            lot = day.get(key)
+            if not lot:
+                continue
+            prizes = lot.get("prizes", {})
+            for t in tiers:
+                num = prizes.get(t)
+                if num and len(num) == 4 and num.isdigit():
+                    hist_counts[num] += 1
+                    appearances[num].append(date_str)
+                    for i, d in enumerate(num):
+                        pos_counts[i][d] += 1
+
+    pos_totals = [sum(pc.values()) for pc in pos_counts]
+    pos_probs = [
+        {d: (pos_counts[i][d] / pos_totals[i] if pos_totals[i] else 0.1)
+         for d in "0123456789"}
+        for i in range(4)
+    ]
+
+    today = datetime.today().date()
+    last_seen: dict = {}
+    avg_gap: dict = {}
+    for num, dates in appearances.items():
+        last_seen[num] = dates[-1]
+        if len(dates) > 1:
+            dts = [datetime.strptime(d, "%Y-%m-%d").date() for d in dates]
+            gaps = [(dts[j + 1] - dts[j]).days for j in range(len(dts) - 1)]
+            avg_gap[num] = sum(gaps) / len(gaps)
+
+    total_days = (today - datetime.strptime(min(data.keys()), "%Y-%m-%d").date()).days
+    global_avg_gap = total_days / max(len(hist_counts), 1)
+
+    return {
+        "pos_probs": pos_probs,
+        "hist_counts": hist_counts,
+        "hist_max": max(hist_counts.values()) if hist_counts else 1,
+        "last_seen": last_seen,
+        "avg_gap": avg_gap,
+        "global_avg_gap": global_avg_gap,
+        "today": today,
+    }
+
+
+def _colour(percentile: float) -> tuple[str, str]:
+    if percentile >= 95:  return ("#f5c518", "Very High")
+    if percentile >= 80:  return ("#22c55e", "High")
+    if percentile >= 60:  return ("#06b6d4", "Above Average")
+    if percentile >= 40:  return ("#f59e0b", "Average")
+    if percentile >= 20:  return ("#f97316", "Below Average")
+    return ("#64748b", "Low")
+
+
+def score_number(num: str, model: dict) -> dict:
+    pos_prob = 1.0
+    for i, d in enumerate(num):
+        pos_prob *= model["pos_probs"][i].get(d, 0.001)
+    pos_norm = min(pos_prob / (0.1 ** 4), 2.5) / 2.5
+
+    count = model["hist_counts"].get(num, 0)
+    hist_norm = count / model["hist_max"]
+
+    today = model["today"]
+    if num in model["last_seen"]:
+        last = datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()
+        days = (today - last).days
+        recency_norm = math.exp(-days / 365)
+        last_seen_fmt = last.strftime("%d %b %Y")
+    else:
+        recency_norm = 0.05
+        last_seen_fmt = "Never"
+        days = None
+
+    if num in model["avg_gap"] and model["avg_gap"][num]:
+        days_since = (today - datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()).days
+        gap_norm = min(days_since / model["avg_gap"][num], 3.0) / 3.0
+    elif num in model["last_seen"]:
+        days_since = (today - datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()).days
+        gap_norm = min(days_since / model["global_avg_gap"], 3.0) / 3.0
+    else:
+        gap_norm = 0.4
+
+    composite = 0.25 * pos_norm + 0.35 * hist_norm + 0.25 * recency_norm + 0.15 * gap_norm
+
+    return {
+        "num": num,
+        "composite": round(composite, 6),
+        "pos_norm": round(pos_norm * 100, 1),
+        "hist_norm": round(hist_norm * 100, 1),
+        "recency_norm": round(recency_norm * 100, 1),
+        "gap_norm": round(gap_norm * 100, 1),
+        "count": count,
+        "last_seen_fmt": last_seen_fmt,
+    }
+
+
+def get_ranked_scores(model: dict) -> list[dict]:
+    results = []
+    for n in range(10000):
+        num = f"{n:04d}"
+        s = score_number(num, model)
+        results.append(s)
+    results.sort(key=lambda x: x["composite"], reverse=True)
+    total = len(results)
+    for rank, r in enumerate(results, 1):
+        percentile = round((1 - rank / total) * 100, 1)
+        colour, label = _colour(percentile)
+        r["rank"] = rank
+        r["percentile"] = percentile
+        r["colour"] = colour
+        r["label"] = label
+        r["score_pct"] = round(r["composite"] / results[0]["composite"] * 100, 1)
+    return results
+
+
+@app.route("/predict")
+def predict():
+    data = load_results()
+    model = build_prediction_model(data)
+    ranked = get_ranked_scores(model)
+    top20 = ranked[:20]
+    rank_lookup = {r["num"]: r for r in ranked}
+    return render_template("predict.html", top20=top20, total_dates=len(data),
+                           next_draw=next_draw_date(), active_page="predict")
+
+
+@app.route("/api/score")
+def api_score():
+    number = request.args.get("number", "").strip()
+    if not number.isdigit() or len(number) != 4:
+        return jsonify({"error": "Enter a valid 4-digit number"}), 400
+    data = load_results()
+    model = build_prediction_model(data)
+    ranked = get_ranked_scores(model)
+    rank_map = {r["num"]: r for r in ranked}
+    return jsonify(rank_map[number])
 
 
 @app.route("/analysis")
