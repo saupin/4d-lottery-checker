@@ -41,6 +41,7 @@
         {% for draw in recent %}
         <div class="mb-3">
           <div class="mb-1" style="color:#f5c518; font-weight:600; font-size:.9rem;">{{ draw.date_fmt }}</div>
+          <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
           <table class="table draw-table mb-0">
             <thead>
               <tr>
@@ -65,6 +66,7 @@
               {% endfor %}
             </tbody>
           </table>
+          </div>
         </div>
         {% endfor %}
       {% else %}

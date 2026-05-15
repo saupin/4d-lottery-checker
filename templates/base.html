@@ -339,6 +339,56 @@
       font-weight: 700; cursor: pointer; transition: all .15s; margin-top: .75rem;
     }
     .btn-track:hover { background: rgba(245,197,24,.22); }
+
+    /* ══ Mobile ══ */
+    @media (max-width: 767px) {
+      /* Nav */
+      .top-nav .container { flex-wrap: wrap; row-gap: .2rem; padding: .3rem 1rem; }
+      .top-nav .nav-link  { font-size: .78rem; padding: .22rem .5rem; }
+
+      /* Header */
+      .site-header { padding: .9rem 0 .75rem; }
+      .site-header h1 { font-size: 1.25rem; }
+      .site-header p  { font-size: .78rem; }
+
+      /* Number input — letter-spacing 1rem is huge on small screens */
+      .number-input { font-size: 1.7rem; letter-spacing: .4rem; padding: .45rem .75rem; }
+
+      /* Results draw table — allow horizontal scroll */
+      .draws-section .mb-3 { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .draw-table thead th,
+      .draw-table tbody td { padding: .35rem .45rem; font-size: .78rem; }
+      .special-nums { font-size: .68rem; }
+
+      /* Filter bar */
+      .filter-bar { padding: .6rem .75rem; }
+      .filter-pill { font-size: .7rem; padding: .15rem .5rem; }
+
+      /* Analysis + Predict tabs — wrap instead of overflow */
+      .analysis-tabs, #predictTabs { flex-wrap: wrap; }
+      .analysis-tabs .nav-link,
+      #predictTabs .nav-link { font-size: .76rem; padding: .28rem .6rem; }
+
+      /* Predict grid — 2 columns */
+      .predict-grid { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+      .predict-num  { font-size: 1.25rem; }
+
+      /* Predict check result */
+      .check-num-display { font-size: 1.7rem; letter-spacing: .3rem; }
+      .check-pct  { font-size: 2rem; }
+      .factor-name { min-width: 95px; font-size: .68rem; }
+      .factor-pct  { width: 30px; font-size: .68rem; }
+      .check-result-card { padding: 1rem; }
+
+      /* Simulate table */
+      #my-table thead th,
+      #my-table tbody td { padding: .35rem .45rem !important; font-size: .76rem; }
+      #my-table td.cell-num { font-size: .88rem; }
+
+      /* Search card */
+      .search-card { padding: 1.25rem 1rem; }
+      .btn-search  { font-size: .9rem; padding: .6rem 1.2rem; }
+    }
   </style>
 </head>
 <body>
