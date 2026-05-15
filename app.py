@@ -803,6 +803,16 @@ def _call_gemini(description: str) -> dict | None:
         return None
 
 
+@app.route("/api/dream/ping")
+def api_dream_ping():
+    if not _GEMINI_KEY:
+        return jsonify({"ok": False, "error": "GEMINI_API_KEY not set"}), 500
+    result = _call_gemini("I saw a snake entering my house")
+    if result:
+        return jsonify({"ok": True, "result": result})
+    return jsonify({"ok": False, "error": "Gemini returned no result — check the key or quota"}), 502
+
+
 @app.route("/dream")
 def dream():
     return render_template("dream.html", active_page="dream", next_draw=next_draw_date())
