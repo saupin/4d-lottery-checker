@@ -412,31 +412,27 @@ def simulate():
 
 import requests as _req
 
-# Vercel KV uses KV_REST_API_*, Upstash Redis integration uses UPSTASH_REDIS_REST_*
-_KV_URL   = os.environ.get("KV_REST_API_URL")   or os.environ.get("UPSTASH_REDIS_REST_URL")
-_KV_TOKEN = os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+_SB_URL = os.environ.get("SUPABASE_URL")
+_SB_KEY = os.environ.get("SUPABASE_KEY")
 
-def _kv(cmd: list):
-    """Send a Redis command to Vercel KV REST API; return result or None."""
-    if not _KV_URL or not _KV_TOKEN:
-        return None
-    try:
-        r = _req.post(_KV_URL, json=cmd,
-                      headers={"Authorization": f"Bearer {_KV_TOKEN}"},
-                      timeout=5)
-        return r.json().get("result")
-    except Exception:
-        return None
+
+def _sb_headers():
+    return {"apikey": _SB_KEY, "Authorization": f"Bearer {_SB_KEY}",
+            "Content-Type": "application/json"}
 
 
 def _load_my_numbers() -> list:
-    # Vercel KV (production)
-    val = _kv(["GET", "my_numbers"])
-    if val is not None:
+    # Supabase (production)
+    if _SB_URL and _SB_KEY:
         try:
-            return json.loads(val)
-        except (json.JSONDecodeError, TypeError):
+            r = _req.get(f"{_SB_URL}/rest/v1/my_numbers_store?id=eq.1&select=data",
+                         headers=_sb_headers(), timeout=5)
+            rows = r.json()
+            if rows:
+                return json.loads(rows[0]["data"])
             return []
+        except Exception:
+            pass
     # Local file (development)
     if not os.path.exists(MY_NUMBERS_FILE):
         return []
@@ -449,9 +445,16 @@ def _load_my_numbers() -> list:
 
 
 def _save_my_numbers(data: list) -> None:
-    # Vercel KV (production)
-    if _kv(["SET", "my_numbers", json.dumps(data)]) == "OK":
-        return
+    # Supabase (production)
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.post(f"{_SB_URL}/rest/v1/my_numbers_store",
+                      json={"id": 1, "data": json.dumps(data)},
+                      headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
+                      timeout=5)
+            return
+        except Exception:
+            pass
     # Local file (development)
     try:
         with open(MY_NUMBERS_FILE, "w", encoding="utf-8") as f:
