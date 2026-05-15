@@ -150,30 +150,36 @@
     if (type === 'success') setTimeout(() => document.getElementById('add-msg').innerHTML = '', 3000);
   }
 
-  /* ── API helpers ── */
-  async function apiGet() {
-    const r = await fetch('/api/my-numbers');
-    return r.json();
-  }
+  /* ── localStorage storage (same key as predict.html) ── */
+  const MN_KEY = '4d_my_numbers_v4';
+  function mnLoad() { try { return JSON.parse(localStorage.getItem(MN_KEY) || '[]'); } catch { return []; } }
+  function mnSave(list) { try { localStorage.setItem(MN_KEY, JSON.stringify(list)); } catch {} }
+
+  async function apiGet() { return mnLoad(); }
   async function apiAdd(entry) {
-    const r = await fetch('/api/my-numbers/add', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(entry)
-    });
-    return { ok: r.ok, data: await r.json() };
+    const list = mnLoad();
+    if (list.some(t => t.num === entry.num && t.lottery === entry.lottery)) {
+      return { ok: false, data: { error: 'Already tracked' } };
+    }
+    list.unshift(entry);
+    mnSave(list);
+    return { ok: true, data: list };
   }
   async function apiRemove(num, lottery, date) {
-    const r = await fetch('/api/my-numbers/remove', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ num, lottery, date })
-    });
-    return r.json();
+    const list = mnLoad().filter(t => !(t.num === num && t.lottery === lottery && t.date === date));
+    mnSave(list);
+    return list;
   }
   async function apiUpdate(keyNum, keyLot, keyDate, lottery, tries) {
-    const r = await fetch('/api/my-numbers/update', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ key_num:keyNum, key_lottery:keyLot, key_date:keyDate, lottery, tries })
+    const list = mnLoad();
+    list.forEach(t => {
+      if (t.num === keyNum && t.lottery === keyLot && t.date === keyDate) {
+        t.lottery = lottery;
+        t.tries   = tries;
+      }
     });
-    return r.json();
+    mnSave(list);
+    return list;
   }
 
   /* ── Form submit ── */

@@ -99,62 +99,50 @@
 </div>
 
 <script>
-  /* ── Add to Simulation (My Numbers) via server API ── */
-  async function addToSim(num, lottery, btn) {
-    btn.disabled = true;
-    try {
-      const tracked = btn.classList.contains('added') || btn.classList.contains('already');
-      if (tracked) {
-        const date = btn.dataset.date || new Date().toISOString().slice(0,10);
-        const r = await fetch('/api/my-numbers/remove', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ num, lottery, date })
-        });
-        if (r.ok) {
-          btn.textContent = '+ Track';
-          btn.classList.remove('added','already');
-          delete btn.dataset.date;
-        }
+  /* ── localStorage helpers (Vercel has no persistent server filesystem) ── */
+  const MN_KEY = '4d_my_numbers_v4';
+  function mnLoad() { try { return JSON.parse(localStorage.getItem(MN_KEY) || '[]'); } catch { return []; } }
+  function mnSave(list) { try { localStorage.setItem(MN_KEY, JSON.stringify(list)); } catch {} }
+
+  /* ── Add to Simulation (My Numbers) ── */
+  function addToSim(num, lottery, btn) {
+    const tracked = btn.classList.contains('added') || btn.classList.contains('already');
+    if (tracked) {
+      const date = btn.dataset.date || new Date().toISOString().slice(0,10);
+      mnSave(mnLoad().filter(t => !(t.num === num && t.lottery === lottery && t.date === date)));
+      btn.textContent = '+ Track';
+      btn.classList.remove('added','already');
+      delete btn.dataset.date;
+    } else {
+      const list = mnLoad();
+      const existing = list.find(t => t.num === num && t.lottery === lottery);
+      if (existing) {
+        btn.textContent = '✓ Tracked';
+        btn.classList.add('already');
+        btn.dataset.date = existing.date;
       } else {
         const date = new Date().toISOString().slice(0,10);
-        const r = await fetch('/api/my-numbers/add', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ num, lottery, tries:10, date })
-        });
-        if (r.ok) {
-          btn.textContent = '✓ Tracked';
-          btn.classList.add('added');
-          btn.dataset.date = date;
-        } else if (r.status === 409) {
-          btn.textContent = '✓ Tracked';
-          btn.classList.add('already');
-        } else {
-          btn.textContent = '✗ Failed';
-          setTimeout(() => { btn.textContent = '+ Track'; }, 2000);
-        }
+        list.unshift({ num, lottery, tries: 10, date });
+        mnSave(list);
+        btn.textContent = '✓ Tracked';
+        btn.classList.add('added');
+        btn.dataset.date = date;
       }
-    } catch(e) {
-      console.error('Track error:', e);
-    } finally {
-      btn.disabled = false;
-      updateAllBtn(lottery);
     }
+    updateAllBtn(lottery);
   }
 
-  async function addAllToSim(tabKey, allBtn) {
+  function addAllToSim(tabKey, allBtn) {
     const cards = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
     const allTracked = cards.every(b => b.classList.contains('added') || b.classList.contains('already'));
-    allBtn.disabled = true;
-    allBtn.textContent = 'Working…';
     for (const btn of cards) {
       const isTracked = btn.classList.contains('added') || btn.classList.contains('already');
       if (allTracked ? isTracked : !isTracked) {
-        const idParts = btn.id.split('-');          // asim-{lottery}-{num}
+        const idParts = btn.id.split('-');
         const num     = idParts[idParts.length - 1];
-        await addToSim(num, tabKey, btn);
+        addToSim(num, tabKey, btn);
       }
     }
-    allBtn.disabled = false;
     updateAllBtn(tabKey);
   }
 
@@ -166,16 +154,12 @@
     allBtn.textContent = allTracked ? '✓ Remove All' : '+ Track All 20';
   }
 
-  async function markTracked() {
-    try {
-      const r    = await fetch('/api/my-numbers');
-      const list = await r.json();
-      list.forEach(t => {
-        const btn = document.getElementById(`asim-${t.lottery}-${t.num}`);
-        if (btn) { btn.textContent = '✓ Tracked'; btn.classList.add('already'); btn.dataset.date = t.date; }
-      });
-      ['all','damacai','magnum','toto'].forEach(updateAllBtn);
-    } catch {}
+  function markTracked() {
+    mnLoad().forEach(t => {
+      const btn = document.getElementById(`asim-${t.lottery}-${t.num}`);
+      if (btn) { btn.textContent = '✓ Tracked'; btn.classList.add('already'); btn.dataset.date = t.date; }
+    });
+    ['all','damacai','magnum','toto'].forEach(updateAllBtn);
   }
   document.addEventListener('DOMContentLoaded', markTracked);
 
