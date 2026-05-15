@@ -7,7 +7,6 @@ Reads lot_results.json and lets users check a 4-digit number for prizes.
 import json
 import math
 import os
-import re
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, render_template, request
@@ -743,19 +742,20 @@ def _save_dream_dict(d: dict) -> None:
         pass
 
 
+def _normalise_phrase(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
 def _match_dream(text: str, d: dict) -> dict | None:
-    text_lower = text.lower()
-    # Try longest keys first to avoid short keys shadowing longer phrases
-    for key in sorted(d.keys(), key=len, reverse=True):
-        pattern = r'\b' + re.escape(key) + r'\b'
-        if re.search(pattern, text_lower):
-            entry = d[key]
-            return {
-                "label":           entry["label"],
-                "nums":            entry["nums"],
-                "matched_keyword": key,
-                "explanation":     entry.get("explanation", ""),
-            }
+    key = _normalise_phrase(text)
+    entry = d.get(key)
+    if entry:
+        return {
+            "label":       entry["label"],
+            "nums":        entry["nums"],
+            "cache_key":   key,
+            "explanation": entry.get("explanation", ""),
+        }
     return None
 
 
@@ -816,17 +816,28 @@ def api_dream():
         return jsonify({"error": "Please enter a description"}), 400
 
     d = _load_dream_dict()
+
+    # Check phrase cache first — avoids calling Gemini for repeated queries
     match = _match_dream(description, d)
     if match:
-        return jsonify({"source": "dictionary", **match})
+        return jsonify({"source": "cache", **match})
 
+    # Send the full phrase to Gemini
     if _GEMINI_KEY:
         result = _call_gemini(description)
         if result:
+            phrase_key = _normalise_phrase(description)
+            # Cache by the exact phrase
+            d[phrase_key] = {
+                "label":       result["label"],
+                "nums":        result["nums"],
+                "explanation": result.get("explanation", ""),
+            }
+            # Also cache by any short keywords Gemini returned (avoids repeat calls)
             for kw in result.get("keywords", []):
-                kw_lower = kw.lower().strip()
-                if kw_lower and kw_lower not in d:
-                    d[kw_lower] = {
+                kw_key = _normalise_phrase(kw)
+                if kw_key and kw_key not in d:
+                    d[kw_key] = {
                         "label":       result["label"],
                         "nums":        result["nums"],
                         "explanation": result.get("explanation", ""),
@@ -834,10 +845,10 @@ def api_dream():
             _save_dream_dict(d)
             return jsonify({"source": "gemini", **result})
         return jsonify({"source": "none",
-                        "message": "Gemini could not find a traditional association."}), 200
+                        "message": "Gemini could not find a traditional 4D association for this."}), 200
 
     return jsonify({"source": "none",
-                    "message": "No match found in the dictionary."}), 200
+                    "message": "No cached result found. Add GEMINI_API_KEY for AI lookup."}), 200
 
 
 if __name__ == "__main__":
