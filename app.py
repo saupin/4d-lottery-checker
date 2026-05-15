@@ -775,7 +775,7 @@ def _call_gemini(description: str) -> dict | None:
     )
     try:
         r = _req.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash"
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash"
             f":generateContent?key={_GEMINI_KEY}",
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
@@ -815,7 +815,7 @@ def api_dream_ping():
             '"explanation":"Snake is a common dream omen."}'
         )
         r = _req.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash"
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash"
             f":generateContent?key={_GEMINI_KEY}",
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
