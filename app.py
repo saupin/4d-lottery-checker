@@ -412,8 +412,9 @@ def simulate():
 
 import requests as _req
 
-_KV_URL   = os.environ.get("KV_REST_API_URL")
-_KV_TOKEN = os.environ.get("KV_REST_API_TOKEN")
+# Vercel KV uses KV_REST_API_*, Upstash Redis integration uses UPSTASH_REDIS_REST_*
+_KV_URL   = os.environ.get("KV_REST_API_URL")   or os.environ.get("UPSTASH_REDIS_REST_URL")
+_KV_TOKEN = os.environ.get("KV_REST_API_TOKEN") or os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 
 def _kv(cmd: list):
     """Send a Redis command to Vercel KV REST API; return result or None."""
