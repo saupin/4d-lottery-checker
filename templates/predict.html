@@ -102,30 +102,43 @@
   /* ── Add to Simulation (My Numbers) via server API ── */
   async function addToSim(num, lottery, btn) {
     btn.disabled = true;
-    const tracked = btn.classList.contains('added') || btn.classList.contains('already');
-    if (tracked) {
-      const today = btn.dataset.date || new Date().toISOString().slice(0,10);
-      await fetch('/api/my-numbers/remove', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ num, lottery, date: today })
-      });
-      btn.textContent = '+ Track';
-      btn.classList.remove('added','already');
-      delete btn.dataset.date;
-    } else {
-      const date = new Date().toISOString().slice(0,10);
-      const r = await fetch('/api/my-numbers/add', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ num, lottery, tries:10, date })
-      });
-      if (r.ok) {
-        btn.textContent = '✓ Tracked';
-        btn.classList.add('added');
-        btn.dataset.date = date;
+    try {
+      const tracked = btn.classList.contains('added') || btn.classList.contains('already');
+      if (tracked) {
+        const date = btn.dataset.date || new Date().toISOString().slice(0,10);
+        const r = await fetch('/api/my-numbers/remove', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ num, lottery, date })
+        });
+        if (r.ok) {
+          btn.textContent = '+ Track';
+          btn.classList.remove('added','already');
+          delete btn.dataset.date;
+        }
+      } else {
+        const date = new Date().toISOString().slice(0,10);
+        const r = await fetch('/api/my-numbers/add', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ num, lottery, tries:10, date })
+        });
+        if (r.ok) {
+          btn.textContent = '✓ Tracked';
+          btn.classList.add('added');
+          btn.dataset.date = date;
+        } else if (r.status === 409) {
+          btn.textContent = '✓ Tracked';
+          btn.classList.add('already');
+        } else {
+          btn.textContent = '✗ Failed';
+          setTimeout(() => { btn.textContent = '+ Track'; }, 2000);
+        }
       }
+    } catch(e) {
+      console.error('Track error:', e);
+    } finally {
+      btn.disabled = false;
+      updateAllBtn(lottery);
     }
-    btn.disabled = false;
-    updateAllBtn(lottery);
   }
 
   async function addAllToSim(tabKey, allBtn) {

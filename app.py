@@ -13,8 +13,17 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-RESULTS_FILE    = os.path.join(os.path.dirname(__file__), "lot_results.json")
-MY_NUMBERS_FILE = os.path.join(os.path.dirname(__file__), "my_numbers.json")
+RESULTS_FILE = os.path.join(os.path.dirname(__file__), "lot_results.json")
+
+# Use a writable path: project dir locally, /tmp on read-only hosts (Vercel)
+_project_dir = os.path.dirname(__file__)
+_candidate    = os.path.join(_project_dir, "my_numbers.json")
+try:
+    open(_candidate, "a").close()
+    MY_NUMBERS_FILE = _candidate
+except OSError:
+    import tempfile
+    MY_NUMBERS_FILE = os.path.join(tempfile.gettempdir(), "4d_my_numbers.json")
 
 PRIZE_ORDER = ["1st", "2nd", "3rd", "special", "consolation"]
 PRIZE_LABEL = {
