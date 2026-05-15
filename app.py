@@ -807,10 +807,29 @@ def _call_gemini(description: str) -> dict | None:
 def api_dream_ping():
     if not _GEMINI_KEY:
         return jsonify({"ok": False, "error": "GEMINI_API_KEY not set"}), 500
-    result = _call_gemini("I saw a snake entering my house")
-    if result:
-        return jsonify({"ok": True, "result": result})
-    return jsonify({"ok": False, "error": "Gemini returned no result — check the key or quota"}), 502
+    try:
+        prompt = (
+            'You are an expert in Malaysian Chinese 4D dream number associations. '
+            'The user dreamed of a snake. Respond ONLY with valid JSON (no markdown):\n'
+            '{"label":"Snake (蛇)","keywords":["snake"],"nums":["0013","2121","1313","3456"],'
+            '"explanation":"Snake is a common dream omen."}'
+        )
+        r = _req.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash"
+            f":generateContent?key={_GEMINI_KEY}",
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 256},
+            },
+            timeout=20,
+        )
+        return jsonify({
+            "ok": r.ok,
+            "http_status": r.status_code,
+            "gemini_response": r.json(),
+        })
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/dream")
