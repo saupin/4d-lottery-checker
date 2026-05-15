@@ -191,8 +191,8 @@
         return;
       }
 
-      const sourceClass = data.source === 'gemini' ? 'dream-source-gemini' : 'dream-source-dict';
-      const sourceName  = data.source === 'gemini' ? '&#129302; AI Lookup' : '&#128218; Cached';
+      const sourceClass = data.source === 'claude' ? 'dream-source-gemini' : 'dream-source-dict';
+      const sourceName  = data.source === 'claude' ? '&#129302; AI Lookup' : '&#128218; Cached';
 
       const numsHtml = (data.nums || []).map(num => `
         <div class="dream-num-card">
@@ -208,7 +208,7 @@
           ${data.explanation ? `<div style="font-size:.82rem;color:#8899aa;margin-bottom:.9rem">${data.explanation}</div>` : ''}
           <div style="font-size:.72rem;color:#8899aa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.25rem">Lucky Numbers</div>
           <div class="dream-nums-grid">${numsHtml}</div>
-          ${data.source === 'gemini' ? `<div style="font-size:.7rem;color:#334455;margin-top:1rem">&#128204; Saved to dictionary — future lookups for this phrase will be instant.</div>` : ''}
+          ${data.source === 'claude' ? `<div style="font-size:.7rem;color:#334455;margin-top:1rem">&#128204; Saved to dictionary — future lookups for this phrase will be instant.</div>` : ''}
         </div>`;
 
     } catch(err) {

@@ -698,7 +698,7 @@ def api_my_numbers_update():
 
 # ── Dream dictionary storage ──────────────────────────────────────────────────
 
-_GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+_ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY")
 
 
 def _load_dream_dict() -> dict:
@@ -759,8 +759,8 @@ def _match_dream(text: str, d: dict) -> dict | None:
     return None
 
 
-def _call_gemini(description: str) -> dict | None:
-    if not _GEMINI_KEY:
+def _call_claude(description: str) -> dict | None:
+    if not _ANTHROPIC_KEY:
         return None
     prompt = (
         'You are an expert in traditional Malaysian Chinese 4D lottery dream number '
@@ -775,18 +775,22 @@ def _call_gemini(description: str) -> dict | None:
     )
     try:
         r = _req.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash"
-            f":generateContent?key={_GEMINI_KEY}",
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": _ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
             json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 512},
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 512,
+                "messages": [{"role": "user", "content": prompt}],
             },
             timeout=20,
         )
         if not r.ok:
             return None
-        text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        # Strip markdown code fences if Gemini wraps anyway
+        text = r.json()["content"][0]["text"].strip()
         if text.startswith("```"):
             parts = text.split("```")
             text = parts[1][4:] if parts[1].startswith("json") else parts[1]
@@ -805,29 +809,24 @@ def _call_gemini(description: str) -> dict | None:
 
 @app.route("/api/dream/ping")
 def api_dream_ping():
-    if not _GEMINI_KEY:
-        return jsonify({"ok": False, "error": "GEMINI_API_KEY not set"}), 500
+    if not _ANTHROPIC_KEY:
+        return jsonify({"ok": False, "error": "ANTHROPIC_API_KEY not set"}), 500
     try:
-        prompt = (
-            'You are an expert in Malaysian Chinese 4D dream number associations. '
-            'The user dreamed of a snake. Respond ONLY with valid JSON (no markdown):\n'
-            '{"label":"Snake (蛇)","keywords":["snake"],"nums":["0013","2121","1313","3456"],'
-            '"explanation":"Snake is a common dream omen."}'
-        )
         r = _req.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash"
-            f":generateContent?key={_GEMINI_KEY}",
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 256},
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": _ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
             },
-            timeout=20,
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 64,
+                "messages": [{"role": "user", "content": "Reply with just: ok"}],
+            },
+            timeout=10,
         )
-        return jsonify({
-            "ok": r.ok,
-            "http_status": r.status_code,
-            "gemini_response": r.json(),
-        })
+        return jsonify({"ok": r.ok, "http_status": r.status_code, "response": r.json()})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 
@@ -846,14 +845,14 @@ def api_dream():
 
     d = _load_dream_dict()
 
-    # Check phrase cache first — avoids calling Gemini for repeated queries
+    # Check phrase cache first — avoids calling Claude for repeated queries
     match = _match_dream(description, d)
     if match:
         return jsonify({"source": "cache", **match})
 
-    # Send the full phrase to Gemini
-    if _GEMINI_KEY:
-        result = _call_gemini(description)
+    # Send the full phrase to Claude
+    if _ANTHROPIC_KEY:
+        result = _call_claude(description)
         if result:
             phrase_key = _normalise_phrase(description)
             # Cache by the exact phrase
@@ -862,7 +861,7 @@ def api_dream():
                 "nums":        result["nums"],
                 "explanation": result.get("explanation", ""),
             }
-            # Also cache by any short keywords Gemini returned (avoids repeat calls)
+            # Also cache by any short keywords Claude returned (avoids repeat calls)
             for kw in result.get("keywords", []):
                 kw_key = _normalise_phrase(kw)
                 if kw_key and kw_key not in d:
@@ -872,12 +871,12 @@ def api_dream():
                         "explanation": result.get("explanation", ""),
                     }
             _save_dream_dict(d)
-            return jsonify({"source": "gemini", **result})
+            return jsonify({"source": "claude", **result})
         return jsonify({"source": "none",
-                        "message": "Gemini could not find a traditional 4D association for this."}), 200
+                        "message": "Claude could not find a traditional 4D association for this."}), 200
 
     return jsonify({"source": "none",
-                    "message": "No cached result found. Add GEMINI_API_KEY for AI lookup."}), 200
+                    "message": "No cached result found. Add ANTHROPIC_API_KEY for AI lookup."}), 200
 
 
 if __name__ == "__main__":
