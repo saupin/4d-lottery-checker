@@ -125,8 +125,10 @@
       `<span class="filter-pill active" onclick="togglePill(activeLotteries,'${l}',this)">${l}</span>`
     ).join('');
 
+    const TIER_SHORT = { '1st Prize':'1st', '2nd Prize':'2nd', '3rd Prize':'3rd',
+                         'Special':'Special', 'Consolation':'Consol.' };
     const tierPills = tiers.map(t =>
-      `<span class="filter-pill active" onclick="togglePill(activeTiers,'${t}',this)">${t}</span>`
+      `<span class="filter-pill active" onclick="togglePill(activeTiers,'${t}',this)">${TIER_SHORT[t]||t}</span>`
     ).join('');
 
     let fromOpts = '', toOpts = '';
