@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}4D Lottery — Dream Numbers{% endblock %}
+
+{% block header %}
+  <h1>&#128302; Dream Number Lookup</h1>
+  <p>Describe your dream or unusual encounter &mdash; get traditional Malaysian 4D lucky numbers &mdash; next draw: <strong style="color:#f5c518">{{ next_draw }}</strong></p>
+{% endblock %}
+
+{% block content %}
+
+<style>
+  .dream-input {
+    background: #0f1923; border: 2px solid #2a3f55; color: #fff;
+    font-size: 1rem; font-weight: 500; border-radius: 10px;
+    padding: .75rem 1rem; width: 100%; transition: border-color .2s;
+    resize: vertical; min-height: 80px; font-family: 'Segoe UI', sans-serif;
+  }
+  .dream-input:focus { outline: none; border-color: #f5c518; }
+  .dream-input::placeholder { color: #2a3f55; }
+
+  .dream-result-card {
+    background: #172130; border: 1px solid #243447; border-radius: 14px;
+    padding: 1.5rem; margin-top: 1rem;
+  }
+  .dream-source-badge {
+    display: inline-block; font-size: .68rem; font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase; border-radius: 20px;
+    padding: .15rem .65rem; border: 1px solid; margin-bottom: .75rem;
+  }
+  .dream-source-dict   { color: #22c55e; border-color: #22c55e; }
+  .dream-source-gemini { color: #55aacc; border-color: #55aacc; }
+  .dream-source-none   { color: #8899aa; border-color: #55667a; }
+
+  .dream-nums-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: .6rem; margin-top: 1rem;
+  }
+  .dream-num-card {
+    background: #0f1923; border: 1px solid #243447; border-radius: 10px;
+    padding: .75rem .5rem; text-align: center; transition: border-color .2s;
+  }
+  .dream-num-card:hover { border-color: #3a5070; }
+  .dream-num-val { font-family: monospace; font-size: 1.5rem; font-weight: 700; color: #e8eaf0; }
+
+  @media (max-width: 767px) {
+    .dream-result-card { padding: 1rem; }
+    .dream-nums-grid { grid-template-columns: repeat(2, 1fr); }
+    .dream-num-val { font-size: 1.25rem; }
+  }
+</style>
+
+<div class="row justify-content-center g-4">
+
+  <!-- Input column -->
+  <div class="col-lg-6">
+    <div class="search-card">
+      <label class="mb-2 d-block">Describe your dream or encounter</label>
+      <textarea id="dreamInput" class="dream-input mb-3"
+                rows="3" placeholder="e.g. I saw a snake entering my house…"></textarea>
+
+      <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">Track numbers against</label>
+      <div class="d-flex gap-2 flex-wrap mb-3">
+        {% for key, label in [('all','All'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
+        <span class="filter-pill {% if key == 'all' %}active{% endif %}"
+              id="dl-{{ key }}" onclick="selectLot('{{ key }}')">{{ label }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn-search flex-grow-1" onclick="lookupDream()">Find Lucky Numbers</button>
+        <button class="btn-clear" onclick="clearDream()" title="Clear">&#10005;</button>
+      </div>
+    </div>
+
+    <div id="dream-spinner" class="text-center mt-3" style="display:none">
+      <div class="spin"></div>
+    </div>
+
+    <div id="dream-result"></div>
+  </div>
+
+  <!-- Info column -->
+  <div class="col-lg-5">
+    <div class="algo-card">
+      <strong>How it works:</strong>
+      Describe what you saw, dreamed, or encountered in plain English. The app searches a
+      built-in traditional Malaysian Chinese 4D dream book dictionary (万字梦书). If no
+      match is found, Google Gemini AI looks up the traditional association and saves it
+      to the dictionary for future use.
+      <br><br>
+      <strong>Example descriptions:</strong>
+      <ul style="margin:0;padding-left:1.2rem;margin-top:.5rem;color:#8899aa;font-size:.82rem">
+        <li>I saw a snake entering my house</li>
+        <li>Dreamed of a big fire</li>
+        <li>A tiger appeared in my dream</li>
+        <li>Found money on the road</li>
+        <li>Attended a wedding ceremony</li>
+        <li>Saw a ghost last night</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const dreamInput = document.getElementById('dreamInput');
+  let selectedLot  = 'all';
+
+  function selectLot(key) {
+    selectedLot = key;
+    document.querySelectorAll('[id^="dl-"]').forEach(el => el.classList.remove('active'));
+    document.getElementById('dl-' + key).classList.add('active');
+  }
+
+  function clearDream() {
+    dreamInput.value = '';
+    document.getElementById('dream-result').innerHTML = '';
+    dreamInput.focus();
+  }
+
+  dreamInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lookupDream(); }
+  });
+
+  async function addToSim(num, lottery, btn) {
+    btn.disabled = true;
+    try {
+      const tracked = btn.classList.contains('added') || btn.classList.contains('already');
+      if (tracked) {
+        const date = btn.dataset.date || new Date().toISOString().slice(0,10);
+        const r = await fetch('/api/my-numbers/remove', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ num, lottery, date })
+        });
+        if (r.ok) {
+          btn.textContent = '+ Track';
+          btn.classList.remove('added','already');
+          delete btn.dataset.date;
+        }
+      } else {
+        const date = new Date().toISOString().slice(0,10);
+        const r = await fetch('/api/my-numbers/add', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ num, lottery, tries:10, date })
+        });
+        if (r.ok) {
+          btn.textContent = '✓ Tracked';
+          btn.classList.add('added');
+          btn.dataset.date = date;
+        } else if (r.status === 409) {
+          btn.textContent = '✓ Tracked';
+          btn.classList.add('already');
+        } else {
+          btn.textContent = '✗ Failed';
+          setTimeout(() => { btn.textContent = '+ Track'; btn.disabled = false; }, 2000);
+          return;
+        }
+      }
+    } catch(e) {
+      console.error('Track error:', e);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function lookupDream() {
+    const description = dreamInput.value.trim();
+    if (!description) {
+      document.getElementById('dream-result').innerHTML =
+        '<div class="alert alert-danger alert-result mt-3">Please describe your dream or encounter.</div>';
+      return;
+    }
+
+    document.getElementById('dream-spinner').style.display = 'block';
+    document.getElementById('dream-result').innerHTML = '';
+
+    try {
+      const res  = await fetch('/api/dream', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ description, lottery: selectedLot })
+      });
+      const data = await res.json();
+
+      if (data.source === 'none') {
+        document.getElementById('dream-result').innerHTML = `
+          <div class="dream-result-card">
+            <span class="dream-source-badge dream-source-none">No Match</span>
+            <div style="color:#8899aa;font-size:.88rem">${data.message || 'No traditional 4D association found.'}</div>
+          </div>`;
+        return;
+      }
+
+      const sourceClass = data.source === 'gemini' ? 'dream-source-gemini' : 'dream-source-dict';
+      const sourceName  = data.source === 'gemini' ? '&#129302; AI Lookup' : '&#128218; Dictionary';
+
+      const numsHtml = (data.nums || []).map(num => `
+        <div class="dream-num-card">
+          <div class="dream-num-val">${num}</div>
+          <button class="btn-add-sim" id="dsim-${num}"
+                  onclick="addToSim('${num}','${selectedLot}',this)">+ Track</button>
+        </div>`).join('');
+
+      document.getElementById('dream-result').innerHTML = `
+        <div class="dream-result-card">
+          <span class="dream-source-badge ${sourceClass}">${sourceName}</span>
+          <div style="font-size:1.1rem;font-weight:700;color:#e8eaf0;margin-bottom:.4rem">${data.label || ''}</div>
+          ${data.matched_keyword ? `<div style="font-size:.75rem;color:#55aacc;margin-bottom:.5rem">Matched keyword: <strong>${data.matched_keyword}</strong></div>` : ''}
+          ${data.explanation ? `<div style="font-size:.82rem;color:#8899aa;margin-bottom:.9rem">${data.explanation}</div>` : ''}
+          <div style="font-size:.72rem;color:#8899aa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.25rem">Lucky Numbers</div>
+          <div class="dream-nums-grid">${numsHtml}</div>
+          ${data.source === 'gemini' ? `<div style="font-size:.7rem;color:#334455;margin-top:1rem">&#128204; These numbers have been saved to the dictionary for future lookups.</div>` : ''}
+        </div>`;
+
+    } catch(err) {
+      document.getElementById('dream-result').innerHTML =
+        '<div class="alert alert-danger alert-result mt-3">Network error. Is the server running?</div>';
+    } finally {
+      document.getElementById('dream-spinner').style.display = 'none';
+    }
+  }
+</script>
+
+{% endblock %}
