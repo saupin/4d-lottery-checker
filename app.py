@@ -13,17 +13,8 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-RESULTS_FILE = os.path.join(os.path.dirname(__file__), "lot_results.json")
-
-# Use a writable path: project dir locally, /tmp on read-only hosts (Vercel)
-_project_dir = os.path.dirname(__file__)
-_candidate    = os.path.join(_project_dir, "my_numbers.json")
-try:
-    open(_candidate, "a").close()
-    MY_NUMBERS_FILE = _candidate
-except OSError:
-    import tempfile
-    MY_NUMBERS_FILE = os.path.join(tempfile.gettempdir(), "4d_my_numbers.json")
+RESULTS_FILE    = os.path.join(os.path.dirname(__file__), "lot_results.json")
+MY_NUMBERS_FILE = os.path.join(os.path.dirname(__file__), "my_numbers.json")
 
 PRIZE_ORDER = ["1st", "2nd", "3rd", "special", "consolation"]
 PRIZE_LABEL = {
@@ -419,15 +410,53 @@ def simulate():
 
 
 
+import requests as _req
+
+_KV_URL   = os.environ.get("KV_REST_API_URL")
+_KV_TOKEN = os.environ.get("KV_REST_API_TOKEN")
+
+def _kv(cmd: list):
+    """Send a Redis command to Vercel KV REST API; return result or None."""
+    if not _KV_URL or not _KV_TOKEN:
+        return None
+    try:
+        r = _req.post(_KV_URL, json=cmd,
+                      headers={"Authorization": f"Bearer {_KV_TOKEN}"},
+                      timeout=5)
+        return r.json().get("result")
+    except Exception:
+        return None
+
+
 def _load_my_numbers() -> list:
+    # Vercel KV (production)
+    val = _kv(["GET", "my_numbers"])
+    if val is not None:
+        try:
+            return json.loads(val)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    # Local file (development)
     if not os.path.exists(MY_NUMBERS_FILE):
         return []
-    with open(MY_NUMBERS_FILE, encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(MY_NUMBERS_FILE, encoding="utf-8") as f:
+            content = f.read().strip()
+            return json.loads(content) if content else []
+    except (json.JSONDecodeError, OSError):
+        return []
+
 
 def _save_my_numbers(data: list) -> None:
-    with open(MY_NUMBERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    # Vercel KV (production)
+    if _kv(["SET", "my_numbers", json.dumps(data)]) == "OK":
+        return
+    # Local file (development)
+    try:
+        with open(MY_NUMBERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except OSError:
+        pass
 
 
 @app.route("/api/my-numbers", methods=["GET"])
