@@ -27,14 +27,30 @@ jobs:
         run: python scraper.py --save lot_results.json
 
       - name: Commit results if changed
+        id: commit
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add lot_results.json
           if git diff --cached --quiet; then
             echo "No new results to commit."
+            echo "new_results=false" >> $GITHUB_OUTPUT
           else
             DATE=$(python -c "import json; d=json.load(open('lot_results.json')); print(sorted(d.keys())[-1])")
             git commit -m "Results: ${DATE}"
             git push
+            echo "new_results=true"  >> $GITHUB_OUTPUT
+            echo "draw_date=${DATE}" >> $GITHUB_OUTPUT
           fi
+
+      - name: Notify Telegram
+        if: steps.commit.outputs.new_results == 'true'
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          DATE="${{ steps.commit.outputs.draw_date }}"
+          MSG="✅ 4D results scraped for ${DATE}%0ADAMACAI · MAGNUM · SPORTSTOTO results are now live."
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d chat_id="${CHAT_ID}" \
+            -d text="${MSG}"
