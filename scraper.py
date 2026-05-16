@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 import requests
 
 BASE_URL        = "https://www.4dmoon.com/past-results/{date}"
-LATEST_URL      = "https://www.4dmoon.com/past-results/"
+LATEST_URL      = "https://www.4dmoon.com"
 DATE_RE         = re.compile(r'\b(\d{4}-\d{2}-\d{2})\b')
 
 HEADERS = {
