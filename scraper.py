@@ -387,11 +387,18 @@ def main():
         print(f"Fetching {label} ({i}/{total})...", file=sys.stderr)
         resolved_date, result = scrape_results(date_str)
         if resolved_date:
-            all_results[resolved_date] = result
-            if args.save:
-                saved[resolved_date] = result
-                with open(args.save, "w", encoding="utf-8") as f:
-                    json.dump(saved, f, indent=2, ensure_ascii=False)
+            has_data = any(
+                result.get(k, {}).get("prizes", {}).get("1st")
+                for k in ("damacai", "magnum", "toto")
+            )
+            if has_data:
+                all_results[resolved_date] = result
+                if args.save:
+                    saved[resolved_date] = result
+                    with open(args.save, "w", encoding="utf-8") as f:
+                        json.dump(saved, f, indent=2, ensure_ascii=False)
+            else:
+                print(f"No results on page for {resolved_date} — draw may not be published yet.", file=sys.stderr)
         fetched += 1
 
         if i < total:
