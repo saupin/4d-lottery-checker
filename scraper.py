@@ -20,7 +20,9 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import requests
 
-BASE_URL = "https://www.4dmoon.com/past-results/{date}"
+BASE_URL        = "https://www.4dmoon.com/past-results/{date}"
+LATEST_URL      = "https://www.4dmoon.com/past-results/"
+DATE_RE         = re.compile(r'\b(\d{4}-\d{2}-\d{2})\b')
 
 HEADERS = {
     "User-Agent": (
@@ -70,20 +72,37 @@ def empty_result(label: str, date_str: str) -> dict:
     }
 
 
-def fetch_page(date_str: str) -> BeautifulSoup | None:
-    url = BASE_URL.format(date=date_str)
+def fetch_page(date_str: str | None) -> BeautifulSoup | None:
+    url = LATEST_URL if date_str is None else BASE_URL.format(date=date_str)
+    label = date_str or "latest"
     for attempt in range(1, 4):
         try:
             resp = requests.get(url, headers=HEADERS, timeout=15)
             resp.raise_for_status()
             return BeautifulSoup(resp.text, "html.parser")
         except requests.HTTPError as e:
-            print(f"HTTP error for {date_str}: {e}", file=sys.stderr)
+            print(f"HTTP error for {label}: {e}", file=sys.stderr)
             break
         except requests.RequestException as e:
-            print(f"Request failed for {date_str} (attempt {attempt}/3): {e}", file=sys.stderr)
+            print(f"Request failed for {label} (attempt {attempt}/3): {e}", file=sys.stderr)
             if attempt < 3:
                 time.sleep(2)
+    return None
+
+
+def detect_date(soup: BeautifulSoup) -> str | None:
+    """Extract the draw date from the page (used when no date is passed in the URL)."""
+    # Try canonical URL or og:url meta tag first
+    for meta in soup.find_all("meta"):
+        content = meta.get("content", "") or ""
+        m = DATE_RE.search(content)
+        if m:
+            return m.group(1)
+    # Fall back to scanning visible text near draw headers
+    for tag in soup.find_all(["h1", "h2", "h3", "title", "span", "div"]):
+        m = DATE_RE.search(tag.get_text())
+        if m:
+            return m.group(1)
     return None
 
 
@@ -175,18 +194,22 @@ def _parse_rtb_table(tbl, target_name: str) -> tuple[str | None, dict]:
     return draw_number, prizes
 
 
-def scrape_results(date_str: str) -> dict:
+def scrape_results(date_str: str | None) -> tuple[str | None, dict]:
     """
-    Parse the 4dmoon.com page for the given date.
-
-    Each lottery section is wrapped in a <table class="rtb">.  We locate
-    the rtb table whose header text starts with the target lottery name
-    (exact prefix match prevents "Magnum 4D Jackpot Gold" from matching
-    "Magnum 4D").
+    Parse the 4dmoon.com page for the given date (or latest if date_str is None).
+    Returns (resolved_date, results_dict).
     """
     soup = fetch_page(date_str)
     if soup is None:
-        return {}
+        return date_str, {}
+
+    if date_str is None:
+        date_str = detect_date(soup)
+        if date_str:
+            print(f"Detected date from page: {date_str}", file=sys.stderr)
+        else:
+            print("Warning: could not detect date from latest page", file=sys.stderr)
+            date_str = datetime.today().strftime("%Y-%m-%d")
 
     results = {
         key: empty_result(cfg["label"], date_str)
@@ -219,7 +242,7 @@ def scrape_results(date_str: str) -> dict:
             results[key]['prizes'] = prizes
             break  # first match is the primary 4D section
 
-    return results
+    return date_str, results
 
 
 def last_draw_dates(n: int) -> list[str]:
@@ -331,14 +354,6 @@ def main():
     )
     args = parser.parse_args()
 
-    if args.from_date:
-        to = args.to_date or datetime.today().strftime("%Y-%m-%d")
-        dates = all_draw_dates(args.from_date, to)
-    elif args.date:
-        dates = [args.date]
-    else:
-        dates = last_draw_dates(args.days)
-
     # Load existing saved data to avoid re-fetching already-stored dates
     saved: dict[str, dict] = {}
     if args.save and os.path.exists(args.save):
@@ -348,24 +363,36 @@ def main():
         except (json.JSONDecodeError, OSError):
             saved = {}
 
+    if args.from_date:
+        to = args.to_date or datetime.today().strftime("%Y-%m-%d")
+        dates: list[str | None] = all_draw_dates(args.from_date, to)
+    elif args.date:
+        dates = [args.date]
+    elif args.days == 1:
+        # Default: fetch latest page (no date in URL) so we always get published results
+        dates = [None]
+    else:
+        dates = last_draw_dates(args.days)
+
     total = len(dates)
     all_results: dict[str, dict] = {}
     fetched = skipped = 0
     for i, date_str in enumerate(dates, 1):
-        if args.save and date_str in saved:
+        if date_str and args.save and date_str in saved:
             print(f"Skipping {date_str} ({i}/{total})", file=sys.stderr)
             all_results[date_str] = saved[date_str]
             skipped += 1
             continue
-        print(f"Fetching {date_str} ({i}/{total})...", file=sys.stderr)
-        result = scrape_results(date_str)
-        all_results[date_str] = result
+        label = date_str or "latest"
+        print(f"Fetching {label} ({i}/{total})...", file=sys.stderr)
+        resolved_date, result = scrape_results(date_str)
+        if resolved_date:
+            all_results[resolved_date] = result
+            if args.save:
+                saved[resolved_date] = result
+                with open(args.save, "w", encoding="utf-8") as f:
+                    json.dump(saved, f, indent=2, ensure_ascii=False)
         fetched += 1
-
-        if args.save:
-            saved[date_str] = result
-            with open(args.save, "w", encoding="utf-8") as f:
-                json.dump(saved, f, indent=2, ensure_ascii=False)
 
         if i < total:
             time.sleep(args.delay)
