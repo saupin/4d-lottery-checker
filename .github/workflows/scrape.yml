@@ -1,0 +1,42 @@
+name: Daily 4D Scraper
+
+on:
+  schedule:
+    # Malaysian draw days: Wed, Sat, Sun — run at 21:30 UTC (5:30 AM MYT next day)
+    - cron: '30 21 * * 3'   # Wednesday
+    - cron: '30 21 * * 6'   # Saturday
+    - cron: '30 21 * * 0'   # Sunday
+  workflow_dispatch:         # allow manual trigger from GitHub Actions UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Scrape latest draw
+        run: python scraper.py --save lot_results.json
+
+      - name: Commit results if changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add lot_results.json
+          if git diff --cached --quiet; then
+            echo "No new results to commit."
+          else
+            DATE=$(python -c "import json; d=json.load(open('lot_results.json')); print(sorted(d.keys())[-1])")
+            git commit -m "Results: ${DATE}"
+            git push
+          fi
