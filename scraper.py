@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 import requests
 
 BASE_URL        = "https://www.4dmoon.com/past-results/{date}"
-LATEST_URL      = "https://www.4dmoon.com"
+FEED_URL        = "https://www.4dmoon.com/feedwest.json"
 DATE_RE         = re.compile(r'\b(\d{4}-\d{2}-\d{2})\b')
 
 HEADERS = {
@@ -70,6 +70,66 @@ def empty_result(label: str, date_str: str) -> dict:
             "consolation": [],
         },
     }
+
+
+def _parse_feed_date(dd_str: str) -> str | None:
+    """Convert "(Sat) 16-May-2026" → "2026-05-16"."""
+    m = re.search(r'(\d{1,2}-\w{3}-\d{4})', dd_str)
+    if m:
+        try:
+            return datetime.strptime(m.group(1), "%d-%b-%Y").strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return None
+
+
+def scrape_feed() -> tuple[str | None, dict]:
+    """Fetch latest results from the 4dmoon.com JSON feed (no date needed)."""
+    try:
+        r = requests.get(FEED_URL, headers=HEADERS, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"Feed error: {e}", file=sys.stderr)
+        return None, {}
+
+    date_str = None
+    for key in ("D", "M", "T"):
+        if key in data and data[key].get("DD"):
+            date_str = _parse_feed_date(data[key]["DD"])
+            if date_str:
+                break
+
+    if not date_str:
+        print("Could not parse date from feed.", file=sys.stderr)
+        return None, {}
+
+    def _extract(entry: dict, label: str) -> dict:
+        if not entry:
+            return empty_result(label, date_str)
+        dn = entry.get("DN", "").lstrip("#").strip() or None
+        specials     = [entry[f"S{i}"] for i in range(1, 14)
+                        if entry.get(f"S{i}") and entry[f"S{i}"] != "----"][:10]
+        consolations = [entry[f"C{i}"] for i in range(1, 11)
+                        if entry.get(f"C{i}") and entry[f"C{i}"] != "----"]
+        def val(k):
+            v = entry.get(k)
+            return v if v and v != "----" else None
+        return {
+            "label": label, "date": date_str, "draw_number": dn,
+            "prizes": {
+                "1st": val("P1"), "2nd": val("P2"), "3rd": val("P3"),
+                "special": specials, "consolation": consolations,
+            },
+        }
+
+    results = {
+        "damacai": _extract(data.get("D", {}), "DAMACAI"),
+        "magnum":  _extract(data.get("M", {}), "MAGNUM"),
+        "toto":    _extract(data.get("T", {}), "SPORTSTOTO"),
+    }
+    print(f"Feed date: {date_str}", file=sys.stderr)
+    return date_str, results
 
 
 def fetch_page(date_str: str | None) -> BeautifulSoup | None:
@@ -385,7 +445,7 @@ def main():
             continue
         label = date_str or "latest"
         print(f"Fetching {label} ({i}/{total})...", file=sys.stderr)
-        resolved_date, result = scrape_results(date_str)
+        resolved_date, result = scrape_feed() if date_str is None else scrape_results(date_str)
         if resolved_date:
             has_data = any(
                 result.get(k, {}).get("prizes", {}).get("1st")
