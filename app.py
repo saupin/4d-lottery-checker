@@ -203,7 +203,7 @@ DRAW_DAYS = {2, 5, 6}  # Wednesday, Saturday, Sunday
 def load_results() -> dict:
     if not os.path.exists(RESULTS_FILE):
         return {}
-    with open(RESULTS_FILE, encoding="utf-8") as f:
+    with open(RESULTS_FILE, encoding="utf-8-sig") as f:
         return json.load(f)
 
 

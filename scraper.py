@@ -418,7 +418,7 @@ def main():
     saved: dict[str, dict] = {}
     if args.save and os.path.exists(args.save):
         try:
-            with open(args.save, encoding="utf-8") as f:
+            with open(args.save, encoding="utf-8-sig") as f:
                 saved = json.load(f)
         except (json.JSONDecodeError, OSError):
             saved = {}
