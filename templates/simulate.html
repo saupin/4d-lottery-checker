@@ -290,7 +290,7 @@
       if (!r.ok) return { wins:[], draws_checked:0 };
       const TOPS  = ['1st Prize','2nd Prize','3rd Prize'];
       const after = entry.date;
-      const allAfter  = data.matches.filter(m => m.date > after);
+      const allAfter  = data.matches.filter(m => m.date >= after);
       const drawDates = new Set(allAfter.map(m => m.date));
       const wins = allAfter.filter(m =>
         TOPS.includes(m.prize) &&
