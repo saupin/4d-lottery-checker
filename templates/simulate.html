@@ -256,7 +256,9 @@
           resultCell = '<span class="checking">checking…</span>';
         } else if (res.wins && res.wins.length > 0) {
           const w = res.wins[0];
-          resultCell = `<span class="res-win">&#127881; ${w.prize} &bull; ${w.date_fmt}</span>`;
+          const topPrize = ['1st Prize','2nd Prize','3rd Prize'].includes(w.prize);
+          const icon = topPrize ? '&#127881;' : '&#127919;';
+          resultCell = `<span class="res-win">${icon} ${w.prize} &bull; ${w.date_fmt}</span>`;
           if (res.wins.length > 1) resultCell += ` <span style="color:#888;font-size:.68rem">(+${res.wins.length-1} more)</span>`;
         } else {
           const checked = res.draws_checked || 0;
@@ -288,12 +290,10 @@
       const r    = await fetch(`/search?number=${encodeURIComponent(entry.num)}`);
       const data = await r.json();
       if (!r.ok) return { wins:[], draws_checked:0 };
-      const TOPS  = ['1st Prize','2nd Prize','3rd Prize'];
       const after = entry.date;
       const allAfter  = data.matches.filter(m => m.date >= after);
       const drawDates = new Set(allAfter.map(m => m.date));
       const wins = allAfter.filter(m =>
-        TOPS.includes(m.prize) &&
         (entry.lottery === 'all' || m.lottery.toLowerCase().includes(LOT_KEYWORDS[entry.lottery]))
       );
       return { wins, draws_checked: drawDates.size };
