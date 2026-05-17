@@ -44,16 +44,16 @@ jobs:
           fi
 
       - name: Notify Telegram
-        if: steps.commit.outputs.new_results == 'true' || github.event_name == 'workflow_dispatch'
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          TODAY=$(date -u +"%Y-%m-%d")
           if [ "${{ steps.commit.outputs.new_results }}" == "true" ]; then
             DATE="${{ steps.commit.outputs.draw_date }}"
-            MSG="✅ 4D results scraped for ${DATE}%0ADAMACAI · MAGNUM · SPORTSTOTO results are now live."
+            MSG="✅ 4D draw results saved for ${DATE}%0ADAMACAI · MAGNUM · SPORTSTOTO are now live."
           else
-            MSG="🔔 Telegram test — bot is working correctly!"
+            MSG="ℹ️ No draw today (${TODAY}) — no new results to save."
           fi
           curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
             -d chat_id="${CHAT_ID}" \
