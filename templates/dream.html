@@ -103,6 +103,7 @@
 </div>
 
 <script>
+  const canTrack   = {{ 'true' if session.get('approved') else 'false' }};
   const dreamInput = document.getElementById('dreamInput');
   let selectedLot  = 'all';
 
@@ -194,10 +195,11 @@
       const sourceClass = data.source === 'claude' ? 'dream-source-gemini' : 'dream-source-dict';
       const sourceName  = data.source === 'claude' ? '&#129302; AI Lookup' : '&#128218; Cached';
 
+      const trackDisabled = canTrack ? '' : 'disabled title="Only Logged-in users are allowed to use this function."';
       const numsHtml = (data.nums || []).map(num => `
         <div class="dream-num-card">
           <div class="dream-num-val">${num}</div>
-          <button class="btn-add-sim" id="dsim-${num}"
+          <button class="btn-add-sim" id="dsim-${num}" ${trackDisabled}
                   onclick="addToSim('${num}','${selectedLot}',this)">+ Track</button>
         </div>`).join('');
 

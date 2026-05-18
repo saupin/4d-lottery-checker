@@ -39,7 +39,8 @@
              type="number" min="1" max="365" value="10" placeholder="10" />
 
       <div class="d-flex gap-2">
-        <button class="btn-search flex-grow-1" id="submit-btn" onclick="submitForm()">Add Number</button>
+        <button class="btn-search flex-grow-1" id="submit-btn" onclick="submitForm()"
+                {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}>Add Number</button>
         <button class="btn-clear" id="cancel-btn" onclick="cancelEdit()" style="display:none">Cancel</button>
         <button class="btn-clear" onclick="resetForm()" title="Clear">&#10005;</button>
       </div>
@@ -52,7 +53,8 @@
     <div class="section-card">
       <div class="d-flex align-items-center justify-content-between mb-1 flex-wrap gap-2">
         <div class="section-title mb-0">&#128204; My Numbers</div>
-        <button class="btn-search" style="padding:.35rem 1rem;font-size:.78rem" onclick="checkAll()">
+        <button class="btn-search" style="padding:.35rem 1rem;font-size:.78rem" onclick="checkAll()"
+                {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}>
           &#128269; Check All
         </button>
       </div>

@@ -36,6 +36,7 @@
     <div class="d-flex justify-content-end mt-3 mb-1">
       <button class="btn-add-sim add-all-btn"
               style="width:auto;padding:.3rem .9rem;font-size:.7rem"
+              {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}
               onclick="addAllToSim('{{ tab_key }}',this)">+ Track All 20</button>
     </div>
     <div class="predict-grid">
@@ -55,6 +56,7 @@
         {% endif %}
         <button class="btn-add-sim"
                 id="asim-{{ tab_key }}-{{ r.num }}"
+                {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}
                 onclick="addToSim('{{ r.num }}','{{ tab_key }}',this)">+ Track</button>
       </div>
       {% endfor %}
