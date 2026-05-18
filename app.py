@@ -996,7 +996,31 @@ def feedback_page():
         elif _recent_feedback_count(session["user_id"]) >= 3:
             error = "You have already submitted 3 feedbacks in the last 24 hours. Please wait before submitting again."
         else:
-            analysis = _analyse_feedback(session["user_id"], text)
+            thread_ctx = None
+            if parent_id:
+                # Build ordered message list for the whole thread so the
+                # analysis has full context, not just the new reply.
+                all_items = _load_user_feedback(session["user_id"])
+                id_map = {item.get("id"): item for item in all_items}
+                root = id_map.get(parent_id)
+                if root:
+                    msgs = [{"role": "user",  "text": root.get("feedback", ""),
+                             "submitted_at": root.get("submitted_at", "")}]
+                    if root.get("admin_reply"):
+                        msgs.append({"role": "admin", "text": root["admin_reply"],
+                                     "submitted_at": root.get("reply_at", "")})
+                    for item in all_items:
+                        if item.get("parent_id") == parent_id:
+                            msgs.append({"role": "user",
+                                         "text": item.get("feedback", ""),
+                                         "submitted_at": item.get("submitted_at", "")})
+                            if item.get("admin_reply"):
+                                msgs.append({"role": "admin",
+                                             "text": item["admin_reply"],
+                                             "submitted_at": item.get("reply_at", "")})
+                    msgs.sort(key=lambda m: m.get("submitted_at") or "")
+                    thread_ctx = msgs
+            analysis = _analyse_feedback(session["user_id"], text, thread=thread_ctx)
             _save_feedback(session["user_id"], text, analysis, parent_id=parent_id)
             prefix = (f"↩️ Follow-up from @{session['user_id']} (thread #{parent_id}):"
                       if parent_id else f"💬 New feedback from @{session['user_id']}:")
@@ -1583,18 +1607,42 @@ def _call_claude(description: str) -> dict | None:
         return None
 
 
-def _analyse_feedback(user_id: str, text: str) -> str:
-    """Ask Claude to classify and comment on user feedback (2-3 sentences)."""
+def _analyse_feedback(user_id: str, text: str,
+                      thread: list | None = None) -> str:
+    """Ask Claude to classify and comment on user feedback (2-3 sentences).
+
+    thread — ordered list of prior messages in the thread (root first), each a
+    dict with keys: role ('user'|'admin'), text, submitted_at.  When provided
+    the prompt includes the full conversation so Claude has context.
+    """
     if not _ANTHROPIC_KEY:
         return ""
-    prompt = (
-        "A user submitted feedback for a 4D lottery tracking web app.\n"
-        f"User: {user_id}\n"
-        f"Feedback: {text}\n\n"
-        "In 2-3 concise sentences: classify it (Bug / Feature Request / Praise / "
-        "Complaint / Question / Other), note the key point, and suggest the most "
-        "actionable next step if any."
-    )
+    if thread:
+        history_lines = []
+        for msg in thread:
+            role  = "Admin" if msg.get("role") == "admin" else f"User ({user_id})"
+            ts    = (msg.get("submitted_at") or "")[:16].replace("T", " ")
+            body  = msg.get("text", "").strip()
+            history_lines.append(f"[{ts}] {role}: {body}")
+        history_block = "\n".join(history_lines)
+        prompt = (
+            "Below is a support conversation on a 4D lottery tracking web app.\n\n"
+            f"--- Conversation so far ---\n{history_block}\n"
+            f"--- New reply from User ({user_id}) ---\n{text}\n\n"
+            "In 2-3 concise sentences: classify the new reply "
+            "(Bug / Feature Request / Praise / Complaint / Question / Other), "
+            "note the key point in context of the full thread, and suggest the "
+            "most actionable next step if any."
+        )
+    else:
+        prompt = (
+            "A user submitted feedback for a 4D lottery tracking web app.\n"
+            f"User: {user_id}\n"
+            f"Feedback: {text}\n\n"
+            "In 2-3 concise sentences: classify it (Bug / Feature Request / Praise / "
+            "Complaint / Question / Other), note the key point, and suggest the most "
+            "actionable next step if any."
+        )
     hdrs = {
         "x-api-key": _ANTHROPIC_KEY,
         "anthropic-version": "2023-06-01",
