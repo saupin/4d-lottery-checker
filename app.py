@@ -777,6 +777,54 @@ def simulate():
                            next_draw=next_draw_date())
 
 
+@app.route("/api/notifications/wins")
+@approved_required
+def api_notification_wins():
+    """Return wins from the last 30 days for the logged-in user's tracked numbers."""
+    session.pop("show_notifications", None)
+    entries = _load_user_numbers(session["user_id"])
+    if not entries:
+        return jsonify([])
+
+    data    = load_results()
+    cutoff  = (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d")
+    num_index = defaultdict(list)
+    for e in entries:
+        num_index[e["num"]].append(e)
+
+    wins = []
+    for date_str in sorted(data.keys()):
+        if date_str < cutoff:
+            continue
+        day = data[date_str]
+        for lot_key in LOTTERY_ORDER:
+            lottery = day.get(lot_key)
+            if not lottery:
+                continue
+            prizes = lottery.get("prizes", {})
+            for tier in PRIZE_ORDER:
+                val = prizes.get(tier)
+                if not val:
+                    continue
+                for num in ([val] if isinstance(val, str) else val):
+                    if num not in num_index:
+                        continue
+                    for e in num_index[num]:
+                        if date_str < e["date"]:
+                            continue
+                        if e["lottery"] != "all" and lot_key != e["lottery"]:
+                            continue
+                        wins.append({
+                            "num":      num,
+                            "date_fmt": datetime.strptime(date_str, "%Y-%m-%d").strftime("%a, %d %b %Y"),
+                            "lottery":  lottery.get("label", lot_key.upper()),
+                            "prize":    PRIZE_LABEL[tier],
+                            "tier":     tier,
+                        })
+
+    return jsonify(wins)
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if "user_id" in session:
@@ -797,6 +845,8 @@ def login_page():
             session["user_id"]  = username
             session["approved"] = bool(user.get("approved"))
             session["is_admin"] = False
+            if session["approved"]:
+                session["show_notifications"] = True
             return redirect(request.args.get("next") or "/")
     return render_template("login.html", error=error, next=request.args.get("next", ""))
 

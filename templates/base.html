@@ -422,6 +422,43 @@
   </div>
 </nav>
 
+<!-- Win notification bar (shown once per login for approved users) -->
+{% if session.get('show_notifications') %}
+<div id="win-bar" style="display:none;background:#0d2010;border-bottom:2px solid #22c55e;padding:.6rem 0">
+  <div class="container d-flex align-items-start justify-content-between gap-3">
+    <div id="win-bar-body" style="font-size:.85rem;color:#e8eaf0;line-height:1.6"></div>
+    <button onclick="document.getElementById('win-bar').style.display='none'"
+            style="background:none;border:none;color:#55667a;cursor:pointer;font-size:1.3rem;line-height:1;flex-shrink:0"
+            title="Dismiss">&times;</button>
+  </div>
+</div>
+<script>
+  fetch('/api/notifications/wins')
+    .then(r => r.json())
+    .then(wins => {
+      if (!wins || !wins.length) return;
+      const tier_icon = { '1st Prize':'🥇', '2nd Prize':'🥈', '3rd Prize':'🥉' };
+      const grouped = {};
+      wins.forEach(w => {
+        const k = `${w.num}|${w.lottery}`;
+        if (!grouped[k]) grouped[k] = { num: w.num, lottery: w.lottery, wins: [] };
+        grouped[k].wins.push(w);
+      });
+      const lines = Object.values(grouped).map(g => {
+        const best = g.wins[0];
+        const icon = tier_icon[best.prize] || '🎯';
+        const extra = g.wins.length > 1 ? ` <span style="color:#55667a">(+${g.wins.length - 1} more)</span>` : '';
+        return `${icon} <strong style="color:#f5c518">${g.num}</strong> — ${best.prize} in ${g.lottery} on ${best.date_fmt}${extra}`;
+      });
+      document.getElementById('win-bar-body').innerHTML =
+        `<span style="color:#22c55e;font-weight:700;margin-right:.5rem">🎉 Wins in the last 30 days:</span>` +
+        lines.join('<span style="color:#243447"> &nbsp;|&nbsp; </span>');
+      document.getElementById('win-bar').style.display = 'block';
+    })
+    .catch(() => {});
+</script>
+{% endif %}
+
 <!-- Site header -->
 <header class="site-header">
   <div class="container">
