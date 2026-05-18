@@ -1014,13 +1014,33 @@ def admin_feedback():
 def admin_test_analysis():
     if not session.get("is_admin"):
         return redirect(url_for("login_page"))
-    key_set   = bool(_ANTHROPIC_KEY)
-    analysis  = _analyse_feedback("test_user", "The prediction scores seem off — DAMACAI numbers rarely match.") if key_set else ""
-    return jsonify({
-        "anthropic_key_set": key_set,
-        "analysis": analysis,
-        "analysis_ok": bool(analysis),
-    })
+    key_set = bool(_ANTHROPIC_KEY)
+    result  = {"anthropic_key_set": key_set, "analysis": "", "analysis_ok": False,
+               "http_status": None, "error": None, "raw_response": None}
+    if key_set:
+        try:
+            r = _req.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": _ANTHROPIC_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 200,
+                    "messages": [{"role": "user", "content": "Say hello in one sentence."}],
+                },
+                timeout=15,
+            )
+            result["http_status"] = r.status_code
+            result["raw_response"] = r.json()
+            if r.ok:
+                result["analysis"] = r.json()["content"][0]["text"].strip()
+                result["analysis_ok"] = True
+        except Exception as e:
+            result["error"] = str(e)
+    return jsonify(result)
 
 
 @app.route("/admin")
