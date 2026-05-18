@@ -267,32 +267,51 @@
   }
 
   function applyDrawFilter() {
-    const q = filterInput.value.trim();
+    const q      = filterInput.value.trim();
     const groups = document.querySelectorAll('.draw-group');
     let matchCount = 0;
 
     groups.forEach(group => {
-      const units    = group.querySelectorAll('.lot-unit');
-      let groupHit   = false;
+      const units  = group.querySelectorAll('.lot-unit');
+      let groupHit = false;
 
       units.forEach(unit => {
-        const links = unit.querySelectorAll('a.prize-link');
-        const nums  = [...links].map(l => l.textContent.trim());
-        const hit   = !q || nums.includes(q);
+        const specBlock = unit.querySelector('.lot-specials');
+        const consBlock = unit.querySelector('.lot-consolations');
 
-        if (hit) {
+        // Show/hide tier blocks according to toggles first
+        if (specBlock) specBlock.style.display = showSpecials     ? '' : 'none';
+        if (consBlock) consBlock.style.display = showConsolations ? '' : 'none';
+
+        if (!q) {
           unit.style.display = '';
-          const specBlock = unit.querySelector('.lot-specials');
-          const consBlock = unit.querySelector('.lot-consolations');
-          if (specBlock) specBlock.style.display = showSpecials     ? '' : 'none';
-          if (consBlock) consBlock.style.display = showConsolations ? '' : 'none';
-
-          links.forEach(l => l.classList.toggle('hl', q !== '' && l.textContent.trim() === q));
-
-          if (q) matchCount++;
           groupHit = true;
-        } else {
-          unit.style.display = 'none';
+          return;
+        }
+
+        // Check which tiers the number appears in
+        const inPodium = [...unit.querySelectorAll('.podium-num')]
+                           .some(l => l.textContent.trim() === q);
+        const inSpec   = showSpecials && specBlock &&
+                         [...specBlock.querySelectorAll('a.prize-link')]
+                           .some(l => l.textContent.trim() === q);
+        const inCons   = showConsolations && consBlock &&
+                         [...consBlock.querySelectorAll('a.prize-link')]
+                           .some(l => l.textContent.trim() === q);
+
+        const hit = inPodium || inSpec || inCons;
+
+        unit.style.display = hit ? '' : 'none';
+        if (hit) {
+          // Highlight only in visible tiers
+          unit.querySelectorAll('a.prize-link').forEach(l => {
+            const inVisible = l.closest('.lot-specials') ? showSpecials
+                            : l.closest('.lot-consolations') ? showConsolations
+                            : true;
+            l.classList.toggle('hl', inVisible && l.textContent.trim() === q);
+          });
+          matchCount++;
+          groupHit = true;
         }
       });
 
@@ -304,10 +323,10 @@
       countEl.textContent = '';
       countEl.style.color  = '';
     } else if (matchCount === 0) {
-      countEl.textContent = `"${q}" has not won any prize in any stored draw.`;
+      countEl.textContent = `"${q}" not found in any visible prize tier.`;
       countEl.style.color  = '#f97316';
     } else {
-      countEl.textContent = `${q} appeared as a prize in ${matchCount} draw${matchCount !== 1 ? 's' : ''}.`;
+      countEl.textContent = `${q} appeared in ${matchCount} draw${matchCount !== 1 ? 's' : ''} (visible tiers only).`;
       countEl.style.color  = '#22c55e';
     }
   }
