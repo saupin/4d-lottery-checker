@@ -29,6 +29,12 @@
                 onmouseout="this.style.borderColor='#2a3f55';this.style.color='#8899aa'">&#10005;</button>
       </div>
       <div id="filter-count" style="font-size:.78rem;margin-top:.5rem;min-height:1.2em"></div>
+
+      <!-- Specials / Consolations toggles -->
+      <div style="display:flex;gap:.5rem;margin-top:.85rem;flex-wrap:wrap">
+        <a href="#" id="toggleSpecials" class="tier-toggle" role="button">Specials</a>
+        <a href="#" id="toggleConsolations" class="tier-toggle" role="button">Consolations</a>
+      </div>
     </div>
 
     <!-- Draw groups -->
@@ -46,8 +52,8 @@
             <th>&#127943; 3rd</th>
           </tr>
         </thead>
-        <tbody>
-          {% for lot in row.lotteries %}
+        {% for lot in row.lotteries %}
+        <tbody class="lot-unit">
           <tr class="lot-row">
             <td>
               <span class="lottery-name">{{ lot.label }}</span><br>
@@ -69,8 +75,28 @@
               {% else %}<span style="color:#55667a">—</span>{% endif %}
             </td>
           </tr>
-          {% endfor %}
+          {% if lot.specials %}
+          <tr class="lot-specials" style="display:none">
+            <td colspan="4" class="tier-detail">
+              <span class="tier-label tier-label-special">Specials</span>
+              <span class="tier-nums">
+                {% for num in lot.specials %}<a href="/?num={{ num }}" class="prize-link">{{ num }}</a>{% if not loop.last %} <span class="tier-sep">·</span> {% endif %}{% endfor %}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
+          {% if lot.consolations %}
+          <tr class="lot-consolations" style="display:none">
+            <td colspan="4" class="tier-detail">
+              <span class="tier-label tier-label-consolation">Consolations</span>
+              <span class="tier-nums">
+                {% for num in lot.consolations %}<a href="/?num={{ num }}" class="prize-link">{{ num }}</a>{% if not loop.last %} <span class="tier-sep">·</span> {% endif %}{% endfor %}
+              </span>
+            </td>
+          </tr>
+          {% endif %}
         </tbody>
+        {% endfor %}
       </table>
       </div>
     </div>
@@ -84,13 +110,60 @@
   #drawFilter:focus { outline: none; border-color: #f5c518; }
   #drawFilter::placeholder { color: #2a3f55; letter-spacing: .3rem; }
   .prize-link.hl { color: #f5c518 !important; }
+
+  .tier-toggle {
+    background: #1f2e40; color: #8899aa; border: 1px solid #2a3f55;
+    border-radius: 20px; padding: .25rem .85rem; font-size: .76rem;
+    font-weight: 600; letter-spacing: .4px; text-decoration: none;
+    transition: all .15s;
+  }
+  .tier-toggle:hover { border-color: #f5c518; color: #f5c518; }
+  .tier-toggle.active { background: #f5c518; border-color: #f5c518; color: #0f1923; }
+  .tier-toggle.active:hover { background: #ffd740; color: #0f1923; }
+
+  .tier-detail { background: #f7f7f7 !important; padding: .55rem 1rem !important; }
+  .tier-label {
+    display: inline-block; font-size: .68rem; font-weight: 700;
+    letter-spacing: .6px; text-transform: uppercase; color: #fff;
+    border-radius: 4px; padding: .15rem .55rem; margin-right: .6rem;
+    vertical-align: middle;
+  }
+  .tier-label-special     { background: #1e7e34; }
+  .tier-label-consolation { background: #155fa0; }
+  .tier-nums { font-family: monospace; font-size: .85rem; color: #333; }
+  .tier-nums a.prize-link { color: #336699; text-decoration: none; }
+  .tier-nums a.prize-link:hover { color: #c8960a; text-decoration: underline; }
+  .tier-sep { color: #bbb; }
+
+  @media (max-width: 767px) {
+    .tier-detail { padding: .4rem .55rem !important; }
+    .tier-label  { font-size: .62rem; padding: .12rem .45rem; margin-right: .4rem; }
+    .tier-nums   { font-size: .75rem; }
+  }
 </style>
 
 <script>
-  const filterInput = document.getElementById('drawFilter');
+  const filterInput      = document.getElementById('drawFilter');
+  const specialsBtn      = document.getElementById('toggleSpecials');
+  const consolationsBtn  = document.getElementById('toggleConsolations');
+  let showSpecials       = false;
+  let showConsolations   = false;
 
   filterInput.addEventListener('input', () => {
     filterInput.value = filterInput.value.replace(/\D/g, '').slice(0, 4);
+    applyDrawFilter();
+  });
+
+  specialsBtn.addEventListener('click', e => {
+    e.preventDefault();
+    showSpecials = !showSpecials;
+    specialsBtn.classList.toggle('active', showSpecials);
+    applyDrawFilter();
+  });
+  consolationsBtn.addEventListener('click', e => {
+    e.preventDefault();
+    showConsolations = !showConsolations;
+    consolationsBtn.classList.toggle('active', showConsolations);
     applyDrawFilter();
   });
 
@@ -106,19 +179,28 @@
     let matchCount = 0;
 
     groups.forEach(group => {
-      const rows    = group.querySelectorAll('.lot-row');
-      let groupHit  = false;
+      const units    = group.querySelectorAll('.lot-unit');
+      let groupHit   = false;
 
-      rows.forEach(row => {
-        const links   = row.querySelectorAll('a.prize-link');
-        const nums    = [...links].map(l => l.textContent.trim());
-        const rowHit  = !q || nums.includes(q);
+      units.forEach(unit => {
+        const links = unit.querySelectorAll('a.prize-link');
+        const nums  = [...links].map(l => l.textContent.trim());
+        const hit   = !q || nums.includes(q);
 
-        row.style.display = rowHit ? '' : 'none';
-        links.forEach(l => l.classList.toggle('hl', q !== '' && l.textContent.trim() === q));
+        if (hit) {
+          unit.style.display = '';
+          const specRow = unit.querySelector('.lot-specials');
+          const consRow = unit.querySelector('.lot-consolations');
+          if (specRow) specRow.style.display = showSpecials     ? '' : 'none';
+          if (consRow) consRow.style.display = showConsolations ? '' : 'none';
 
-        if (rowHit && q) { groupHit = true; matchCount++; }
-        if (!q) groupHit = true;
+          links.forEach(l => l.classList.toggle('hl', q !== '' && l.textContent.trim() === q));
+
+          if (q) matchCount++;
+          groupHit = true;
+        } else {
+          unit.style.display = 'none';
+        }
       });
 
       group.style.display = groupHit ? '' : 'none';
@@ -129,10 +211,10 @@
       countEl.textContent = '';
       countEl.style.color  = '';
     } else if (matchCount === 0) {
-      countEl.textContent = `"${q}" has not won a top-3 prize in any stored draw.`;
+      countEl.textContent = `"${q}" has not won any prize in any stored draw.`;
       countEl.style.color  = '#f97316';
     } else {
-      countEl.textContent = `${q} appeared as a top-3 prize in ${matchCount} draw${matchCount !== 1 ? 's' : ''}.`;
+      countEl.textContent = `${q} appeared as a prize in ${matchCount} draw${matchCount !== 1 ? 's' : ''}.`;
       countEl.style.color  = '#22c55e';
     }
   }

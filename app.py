@@ -892,6 +892,8 @@ def draws():
                 "p1": prizes.get("1st", ""),
                 "p2": prizes.get("2nd", ""),
                 "p3": prizes.get("3rd", ""),
+                "specials":     prizes.get("special", []) or [],
+                "consolations": prizes.get("consolation", []) or [],
             })
         rows.append({
             "date":     date_str,
