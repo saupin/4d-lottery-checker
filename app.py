@@ -1106,7 +1106,9 @@ def admin_feedback_create_issue(item_id):
     title_src = root.get("feedback", "")
     title     = "[Feedback] " + (title_src[:67] + "…" if len(title_src) > 67 else title_src)
 
-    issue_body = f"""## User Feedback — Implementation Request
+    issue_body = f"""@claude Please implement the change described in this user feedback.
+
+## User Feedback — Implementation Request
 
 {conv_block}
 ---
@@ -1118,7 +1120,7 @@ def admin_feedback_create_issue(item_id):
 
 ### Task
 
-Based on the feedback thread above, please implement the requested change in this **4D lottery tracking web app**.
+Based on the feedback thread above, implement the requested change in this **4D lottery tracking web app**.
 
 - Backend: `app.py` (Flask, Supabase via REST, Vercel serverless)
 - Templates: `templates/` (Jinja2 + Bootstrap 5)
