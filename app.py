@@ -1033,8 +1033,8 @@ def feedback_page():
             error = "Feedback cannot be empty."
         elif len(text) > 500:
             error = "Feedback must be 500 characters or fewer."
-        elif _recent_feedback_count(session["user_id"]) >= 3:
-            error = "You have already submitted 3 feedbacks in the last 24 hours. Please wait before submitting again."
+        elif _recent_feedback_count(session["user_id"]) >= 10:
+            error = "You have already submitted 10 feedbacks in the last 24 hours. Please wait before submitting again."
         else:
             thread_ctx = None
             if parent_id:
