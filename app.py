@@ -992,8 +992,8 @@ def feedback_page():
         elif _recent_feedback_count(session["user_id"]) >= 3:
             error = "You have already submitted 3 feedbacks in the last 24 hours. Please wait before submitting again."
         else:
-            _save_feedback(session["user_id"], text)
             analysis = _analyse_feedback(session["user_id"], text)
+            _save_feedback(session["user_id"], text, analysis)
             parts = [f"💬 New feedback from @{session['user_id']}:\n\n\"{text}\""]
             if analysis:
                 parts.append(f"\n🤖 Claude's take:\n{analysis}")
@@ -1232,13 +1232,14 @@ def api_my_numbers_update():
 
 # ── Feedback storage ──────────────────────────────────────────────────────────
 
-def _save_feedback(user_id: str, text: str) -> None:
+def _save_feedback(user_id: str, text: str, analysis: str = "") -> None:
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     if _SB_URL and _SB_KEY:
         try:
             _req.post(f"{_SB_URL}/rest/v1/feedback_store",
                       headers={**_sb_headers(), "Prefer": "return=minimal"},
-                      json={"user_id": user_id, "feedback": text, "submitted_at": now},
+                      json={"user_id": user_id, "feedback": text,
+                            "claude_analysis": analysis, "submitted_at": now},
                       timeout=5)
         except Exception:
             pass
@@ -1249,7 +1250,8 @@ def _save_feedback(user_id: str, text: str) -> None:
             items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
         except Exception:
             pass
-    items.insert(0, {"user_id": user_id, "feedback": text, "submitted_at": now})
+    items.insert(0, {"user_id": user_id, "feedback": text,
+                     "claude_analysis": analysis, "submitted_at": now})
     try:
         with open(_FEEDBACK_FILE, "w", encoding="utf-8") as f:
             json.dump(items, f, indent=2)

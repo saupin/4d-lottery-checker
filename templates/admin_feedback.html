@@ -32,7 +32,7 @@
           <tr>
             <th>User</th>
             <th>Submitted</th>
-            <th>Feedback</th>
+            <th>Feedback &amp; Claude's Analysis</th>
           </tr>
         </thead>
         <tbody>
@@ -45,8 +45,18 @@
             <td style="font-size:.75rem;color:#8899aa;white-space:nowrap;vertical-align:top">
               {{ item.submitted_at[:16].replace('T',' ') if item.submitted_at else '—' }}
             </td>
-            <td style="font-size:.85rem;color:#e8eaf0;line-height:1.5">
-              {{ item.feedback }}
+            <td style="vertical-align:top">
+              <div style="font-size:.85rem;color:#e8eaf0;line-height:1.5;margin-bottom:.5rem">
+                {{ item.feedback }}
+              </div>
+              {% if item.claude_analysis %}
+              <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
+                          border-radius:0 6px 6px 0;font-size:.78rem;color:#8899aa;line-height:1.5">
+                <span style="color:#55aacc;font-weight:700;font-size:.7rem;
+                             text-transform:uppercase;letter-spacing:.5px">&#129302; Claude</span><br>
+                {{ item.claude_analysis }}
+              </div>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
