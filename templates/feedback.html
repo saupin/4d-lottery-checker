@@ -3,24 +3,15 @@
 
 {% block header %}
   <h1>&#128172; Feedback</h1>
-  <p>Share your thoughts, report bugs, or suggest improvements.</p>
+  <p>Share your thoughts or reply to admin responses below.</p>
 {% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-lg-6">
+  <div class="col-lg-7">
 
-    {% if success %}
-    <div style="background:#0d2010;border:1px solid #22c55e;color:#22c55e;border-radius:12px;
-                padding:1.5rem;text-align:center;margin-bottom:1.5rem">
-      <div style="font-size:2rem;margin-bottom:.5rem">&#9989;</div>
-      <div style="font-weight:700;font-size:1rem;margin-bottom:.25rem">Thank you for your feedback!</div>
-      <div style="font-size:.82rem;color:#8899aa">Your submission has been received and will be reviewed.</div>
-      <a href="/" style="display:inline-block;margin-top:1rem;font-size:.82rem;color:#55aacc">
-        &#8592; Back to Results
-      </a>
-    </div>
-    {% else %}
+    <!-- ── Submit / Reply form ── -->
+    {% if not success %}
 
     {% if error %}
     <div style="background:#1a0d0d;border:1px solid #f97316;color:#f97316;border-radius:8px;
@@ -29,15 +20,28 @@
     </div>
     {% endif %}
 
-    <div class="section-card">
-      <div class="section-title mb-1">&#128172; Submit Feedback</div>
-      <div class="section-sub">Logged in as <strong style="color:#55aacc">{{ session['user_id'] }}</strong> &mdash; max 500 characters</div>
+    <div class="section-card mb-4" id="feedback-form-card">
+      <div class="d-flex align-items-center justify-content-between mb-1">
+        <div class="section-title mb-0" id="form-title">&#128172; Submit Feedback</div>
+        <span style="font-size:.75rem;color:#55aacc">{{ session['user_id'] }}</span>
+      </div>
 
-      <form method="POST" action="/feedback">
+      <!-- Reply context banner (hidden by default) -->
+      <div id="reply-context" style="display:none;background:#0d1b2a;border-left:3px solid #f5c518;
+           padding:.4rem .75rem;border-radius:0 6px 6px 0;font-size:.78rem;
+           color:#8899aa;margin-bottom:.75rem;margin-top:.5rem">
+        Replying to: <em id="reply-snippet" style="color:#aabbcc"></em>
+        <button onclick="cancelReply()"
+                style="background:none;border:none;color:#55667a;cursor:pointer;
+                       font-size:.75rem;margin-left:.5rem">&#10005; cancel</button>
+      </div>
+
+      <form method="POST" action="/feedback" id="feedback-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="hidden" name="parent_id"  id="parent_id_field" value="">
 
         <textarea id="feedbackText" name="feedback"
-                  maxlength="500" rows="6"
+                  maxlength="500" rows="5"
                   placeholder="Tell us what's working, what's broken, or what you'd like to see…"
                   style="width:100%;background:#0f1923;border:2px solid #2a3f55;color:#e8eaf0;
                          border-radius:10px;padding:.75rem 1rem;font-size:.9rem;
@@ -47,22 +51,98 @@
                   onblur="this.style.borderColor='#2a3f55'"
                   oninput="updateCount(this)"></textarea>
 
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    margin-top:.4rem;margin-bottom:1rem">
           <span id="charCount" style="font-size:.75rem;color:#55667a">0 / 500</span>
           <span id="charWarn"  style="font-size:.72rem;color:#f97316;display:none">Limit reached</span>
         </div>
 
-        <button type="submit" class="btn-search" style="width:100%">
+        <button type="submit" class="btn-search" style="width:100%" id="submit-btn">
           &#128172; Submit Feedback
         </button>
       </form>
     </div>
 
-    <div style="margin-top:1.25rem;font-size:.75rem;color:#55667a;text-align:center;line-height:1.7">
-      Feedback is anonymous to other users and reviewed by the admin only.<br>
-      Limit: 3 submissions per 24 hours.
+    <div style="font-size:.72rem;color:#55667a;text-align:center;margin-top:-.5rem;margin-bottom:1.5rem">
+      Reviewed by admin only &nbsp;·&nbsp; Max 3 submissions per 24 h
     </div>
 
+    {% else %}
+    <!-- Success banner -->
+    <div style="background:#0d2010;border:1px solid #22c55e;color:#22c55e;border-radius:12px;
+                padding:1.25rem;text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:1.8rem;margin-bottom:.35rem">&#9989;</div>
+      <div style="font-weight:700;font-size:.95rem">Thank you — your message has been received!</div>
+    </div>
+    {% endif %}
+
+    <!-- ── Conversation history ── -->
+    {% if threads %}
+    <div class="section-title mb-3">&#128172; Your Conversations</div>
+
+    {% for thread in threads %}
+    <div style="background:#172130;border:1px solid #243447;border-radius:12px;
+                padding:1.1rem;margin-bottom:1.25rem">
+
+      {# ── Macro: render one message bubble ── #}
+      {% macro msg_bubble(item, is_followup=false) %}
+      <div style="{% if is_followup %}margin-left:1.25rem;border-left:2px solid #243447;padding-left:.85rem;{% endif %}">
+
+        <!-- User message -->
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem">
+          <span style="font-size:.7rem;font-weight:700;color:#55aacc;text-transform:uppercase;
+                       letter-spacing:.4px">You</span>
+          <span style="font-size:.68rem;color:#55667a">
+            {{ item.submitted_at[:16].replace('T',' ') if item.submitted_at else '' }}
+          </span>
+        </div>
+        <div style="font-size:.88rem;color:#e8eaf0;line-height:1.6;margin-bottom:.6rem">
+          {{ item.feedback }}
+        </div>
+
+        <!-- Admin reply -->
+        {% if item.get('admin_reply') %}
+        <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
+                    border-radius:0 6px 6px 0;margin-bottom:.5rem">
+          <div style="font-size:.68rem;font-weight:700;color:#55aacc;text-transform:uppercase;
+                      letter-spacing:.4px;margin-bottom:.2rem">
+            &#128100; Admin
+            {% if item.get('reply_at') %}
+            <span style="font-weight:400;color:#55667a">
+              &mdash; {{ item.reply_at[:16].replace('T',' ') }}
+            </span>
+            {% endif %}
+          </div>
+          <div style="font-size:.85rem;color:#c8e0f0;line-height:1.6">{{ item.admin_reply }}</div>
+        </div>
+
+        {% if not success %}
+        <button onclick="replyTo({{ thread.id }}, {{ item.get('admin_reply','')|tojson }})"
+                style="background:none;border:1px solid #2a3f55;color:#55667a;border-radius:6px;
+                       padding:.2rem .6rem;font-size:.72rem;cursor:pointer;transition:all .15s;
+                       margin-bottom:.4rem"
+                onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
+                onmouseout="this.style.borderColor='#2a3f55';this.style.color='#55667a'">
+          ↩ Reply
+        </button>
+        {% endif %}
+        {% endif %}
+
+      </div>
+      {% endmacro %}
+
+      <!-- Root message -->
+      {{ msg_bubble(thread) }}
+
+      <!-- Follow-up messages -->
+      {% for fu in thread.get('followups', []) %}
+      <div style="margin-top:.75rem">
+        {{ msg_bubble(fu, is_followup=true) }}
+      </div>
+      {% endfor %}
+
+    </div>
+    {% endfor %}
     {% endif %}
 
   </div>
@@ -71,12 +151,31 @@
 <script>
   function updateCount(el) {
     const len = el.value.length;
-    const countEl = document.getElementById('charCount');
-    const warnEl  = document.getElementById('charWarn');
-    countEl.textContent = `${len} / 500`;
-    const near = len >= 450;
-    countEl.style.color = near ? (len >= 500 ? '#f97316' : '#f5c518') : '#55667a';
-    warnEl.style.display = len >= 500 ? 'inline' : 'none';
+    const c = document.getElementById('charCount');
+    const w = document.getElementById('charWarn');
+    c.textContent = `${len} / 500`;
+    c.style.color  = len >= 500 ? '#f97316' : len >= 450 ? '#f5c518' : '#55667a';
+    w.style.display = len >= 500 ? 'inline' : 'none';
+  }
+
+  function replyTo(threadId, adminReply) {
+    document.getElementById('parent_id_field').value = threadId;
+    const snippet = adminReply.length > 70 ? adminReply.slice(0, 70) + '…' : adminReply;
+    document.getElementById('reply-snippet').textContent = '"' + snippet + '"';
+    document.getElementById('reply-context').style.display = 'block';
+    document.getElementById('form-title').textContent = '↩ Reply';
+    document.getElementById('submit-btn').textContent = '↩ Send Reply';
+    document.getElementById('feedbackText').placeholder = 'Type your reply…';
+    document.getElementById('feedback-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('feedbackText').focus();
+  }
+
+  function cancelReply() {
+    document.getElementById('parent_id_field').value = '';
+    document.getElementById('reply-context').style.display = 'none';
+    document.getElementById('form-title').textContent = '💬 Submit Feedback';
+    document.getElementById('submit-btn').textContent = '💬 Submit Feedback';
+    document.getElementById('feedbackText').placeholder = 'Tell us what\'s working, what\'s broken, or what you\'d like to see…';
   }
 </script>
 {% endblock %}

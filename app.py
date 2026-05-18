@@ -986,7 +986,9 @@ def feedback_page():
     if request.method == "POST":
         if not _csrf_ok():
             return "CSRF check failed", 403
-        text = request.form.get("feedback", "").strip()
+        text      = request.form.get("feedback", "").strip()
+        pid_raw   = request.form.get("parent_id", "").strip()
+        parent_id = int(pid_raw) if pid_raw.isdigit() else None
         if not text:
             error = "Feedback cannot be empty."
         elif len(text) > 500:
@@ -995,21 +997,25 @@ def feedback_page():
             error = "You have already submitted 3 feedbacks in the last 24 hours. Please wait before submitting again."
         else:
             analysis = _analyse_feedback(session["user_id"], text)
-            _save_feedback(session["user_id"], text, analysis)
-            parts = [f"💬 New feedback from @{session['user_id']}:\n\n\"{text}\""]
+            _save_feedback(session["user_id"], text, analysis, parent_id=parent_id)
+            prefix = (f"↩️ Follow-up from @{session['user_id']} (thread #{parent_id}):"
+                      if parent_id else f"💬 New feedback from @{session['user_id']}:")
+            parts = [f"{prefix}\n\n\"{text}\""]
             if analysis:
                 parts.append(f"\n🤖 Claude's take:\n{analysis}")
             _tg_notify("\n".join(parts))
             success = True
-    return render_template("feedback.html", success=success, error=error, active_page="feedback")
+    threads = _build_threads(_load_user_feedback(session["user_id"]))
+    return render_template("feedback.html", success=success, error=error,
+                           active_page="feedback", threads=threads)
 
 
 @app.route("/admin/feedback")
 def admin_feedback():
     if not session.get("is_admin"):
         return redirect(url_for("login_page", next="/admin/feedback"))
-    items = _list_feedback()
-    return render_template("admin_feedback.html", items=items, active_page=None)
+    threads = _build_threads(_list_feedback())
+    return render_template("admin_feedback.html", threads=threads, active_page=None)
 
 
 @app.route("/admin/feedback/update/<int:item_id>", methods=["POST"])
@@ -1297,17 +1303,20 @@ def api_my_numbers_update():
 
 # ── Feedback storage ──────────────────────────────────────────────────────────
 
-def _save_feedback(user_id: str, text: str, analysis: str = "") -> None:
+def _save_feedback(user_id: str, text: str, analysis: str = "",
+                   parent_id: int | None = None) -> None:
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     if _SB_URL and _SB_KEY:
         hdrs = {**_sb_headers(), "Prefer": "return=minimal"}
-        payload = {"user_id": user_id, "feedback": text,
-                   "claude_analysis": analysis, "submitted_at": now}
+        payload: dict = {"user_id": user_id, "feedback": text,
+                         "claude_analysis": analysis, "submitted_at": now,
+                         "status": "pending"}
+        if parent_id:
+            payload["parent_id"] = parent_id
         try:
             r = _req.post(f"{_SB_URL}/rest/v1/feedback_store",
                           headers=hdrs, json=payload, timeout=5)
             if not r.ok and analysis:
-                # claude_analysis column may not exist yet — save without it
                 payload.pop("claude_analysis")
                 _req.post(f"{_SB_URL}/rest/v1/feedback_store",
                           headers=hdrs, json=payload, timeout=5)
@@ -1323,13 +1332,50 @@ def _save_feedback(user_id: str, text: str, analysis: str = "") -> None:
     next_id = max((i.get("id", 0) for i in items), default=0) + 1
     items.insert(0, {"id": next_id, "user_id": user_id, "feedback": text,
                      "claude_analysis": analysis, "submitted_at": now,
-                     "status": "pending", "admin_reply": None,
-                     "reply_at": None, "reply_read": True})
+                     "status": "pending", "parent_id": parent_id,
+                     "admin_reply": None, "reply_at": None, "reply_read": True})
     try:
         with open(_FEEDBACK_FILE, "w", encoding="utf-8") as f:
             json.dump(items, f, indent=2)
     except OSError:
         pass
+
+
+def _load_user_feedback(user_id: str) -> list:
+    """All feedback rows for this user, sorted oldest first (for threading)."""
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(
+                f"{_SB_URL}/rest/v1/feedback_store"
+                f"?user_id=eq.{user_id}&order=submitted_at.asc&select=*",
+                headers=_sb_headers(), timeout=5)
+            return r.json() if r.ok else []
+        except Exception:
+            return []
+    if not os.path.exists(_FEEDBACK_FILE):
+        return []
+    try:
+        items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
+        return sorted([i for i in items if i.get("user_id") == user_id],
+                      key=lambda x: x.get("submitted_at", ""))
+    except Exception:
+        return []
+
+
+def _build_threads(items: list) -> list:
+    """Group flat feedback rows into root → followups threads, newest root first."""
+    roots: dict = {}
+    children: list = []
+    for item in items:
+        if item.get("parent_id"):
+            children.append(item)
+        else:
+            roots[item.get("id")] = {**item, "followups": []}
+    for child in children:
+        pid = child.get("parent_id")
+        if pid in roots:
+            roots[pid]["followups"].append(child)
+    return sorted(roots.values(), key=lambda x: x.get("submitted_at", ""), reverse=True)
 
 
 def _update_feedback(item_id: int, status: str | None = None,
