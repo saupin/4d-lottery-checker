@@ -98,6 +98,25 @@ def _set_approved(username: str, approved: bool) -> None:
         users[username]["approved"] = approved
         _users_local_save(users)
 
+
+def _delete_user(username: str) -> None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.delete(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}",
+                        headers=_sb_headers(), timeout=5)
+            _req.delete(f"{_SB_URL}/rest/v1/user_numbers_store?id=eq.{username}",
+                        headers=_sb_headers(), timeout=5)
+        except Exception:
+            pass
+        return
+    users = _users_local()
+    users.pop(username, None)
+    _users_local_save(users)
+    path = os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json")
+    if os.path.exists(path):
+        os.remove(path)
+
 def _list_users() -> list:
     if _SB_URL and _SB_KEY:
         try:
@@ -568,7 +587,10 @@ def compute_extended_stats(data: dict, lottery: str | None = None) -> dict:
 
 
 def next_draw_date() -> str:
-    day = datetime.today() + timedelta(days=1)
+    today = datetime.today()
+    if today.weekday() in DRAW_DAYS:
+        return today.strftime("Today, %d %b %Y")
+    day = today + timedelta(days=1)
     for _ in range(7):
         if day.weekday() in DRAW_DAYS:
             return day.strftime("%a, %d %b %Y")
@@ -836,48 +858,14 @@ def admin_revoke(username):
     return redirect("/admin")
 
 
+@app.route("/admin/delete/<username>", methods=["POST"])
+def admin_delete(username):
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 401
+    _delete_user(username)
+    return redirect("/admin")
 
 
-def _load_my_numbers() -> list:
-    # Supabase (production)
-    if _SB_URL and _SB_KEY:
-        try:
-            r = _req.get(f"{_SB_URL}/rest/v1/my_numbers_store?id=eq.1&select=data",
-                         headers=_sb_headers(), timeout=5)
-            rows = r.json()
-            if rows:
-                return json.loads(rows[0]["data"])
-            return []
-        except Exception:
-            pass
-    # Local file (development)
-    if not os.path.exists(MY_NUMBERS_FILE):
-        return []
-    try:
-        with open(MY_NUMBERS_FILE, encoding="utf-8") as f:
-            content = f.read().strip()
-            return json.loads(content) if content else []
-    except (json.JSONDecodeError, OSError):
-        return []
-
-
-def _save_my_numbers(data: list) -> None:
-    # Supabase (production)
-    if _SB_URL and _SB_KEY:
-        try:
-            _req.post(f"{_SB_URL}/rest/v1/my_numbers_store",
-                      json={"id": 1, "data": json.dumps(data)},
-                      headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
-                      timeout=5)
-            return
-        except Exception:
-            pass
-    # Local file (development)
-    try:
-        with open(MY_NUMBERS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-    except OSError:
-        pass
 
 
 @app.route("/api/my-numbers", methods=["GET"])
@@ -926,7 +914,6 @@ def api_my_numbers_remove():
 @app.route("/api/my-numbers/check-all", methods=["POST"])
 @approved_required
 def api_check_all():
-    from collections import defaultdict
     entries = request.get_json(silent=True) or []
     if not entries:
         return jsonify({})

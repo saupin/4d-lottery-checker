@@ -25,7 +25,7 @@
               <th>Username</th>
               <th>Status</th>
               <th>Registered</th>
-              <th style="width:120px"></th>
+              <th style="width:180px"></th>
             </tr>
           </thead>
           <tbody>
@@ -42,7 +42,7 @@
               <td style="font-size:.75rem;color:#8899aa">
                 {{ u.created_at[:10] if u.created_at else '—' }}
               </td>
-              <td>
+              <td style="white-space:nowrap">
                 {% if u.approved %}
                 <form method="POST" action="/admin/revoke/{{ u.id }}" style="display:inline">
                   <button type="submit" class="btn-tbl btn-remove">Revoke</button>
@@ -52,6 +52,10 @@
                   <button type="submit" class="btn-tbl" style="color:#22c55e;border-color:#22c55e">&#9989; Approve</button>
                 </form>
                 {% endif %}
+                <form method="POST" action="/admin/delete/{{ u.id }}" style="display:inline"
+                      onsubmit="return confirm('Delete {{ u.id }} and all their data? This cannot be undone.')">
+                  <button type="submit" class="btn-tbl btn-remove" style="margin-left:.3rem">&#128465; Delete</button>
+                </form>
               </td>
             </tr>
             {% endfor %}
