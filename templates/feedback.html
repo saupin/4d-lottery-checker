@@ -85,7 +85,7 @@
                 padding:1.1rem;margin-bottom:1.25rem">
 
       {# ── Macro: render one message bubble ── #}
-      {% macro msg_bubble(item, is_followup=false) %}
+      {% macro msg_bubble(item, thread_id, is_followup=false) %}
       <div style="{% if is_followup %}margin-left:1.25rem;border-left:2px solid #243447;padding-left:.85rem;{% endif %}">
 
         <!-- User message -->
@@ -117,7 +117,7 @@
         </div>
 
         {% if not success %}
-        <button onclick="replyTo({{ thread.id }}, {{ item.get('admin_reply','')|tojson }})"
+        <button onclick="replyTo({{ thread_id }}, {{ item.get('admin_reply','')|tojson }})"
                 style="background:none;border:1px solid #2a3f55;color:#55667a;border-radius:6px;
                        padding:.2rem .6rem;font-size:.72rem;cursor:pointer;transition:all .15s;
                        margin-bottom:.4rem"
@@ -132,12 +132,12 @@
       {% endmacro %}
 
       <!-- Root message -->
-      {{ msg_bubble(thread) }}
+      {{ msg_bubble(thread, thread.get('id','')) }}
 
       <!-- Follow-up messages -->
       {% for fu in thread.get('followups', []) %}
       <div style="margin-top:.75rem">
-        {{ msg_bubble(fu, is_followup=true) }}
+        {{ msg_bubble(fu, thread.get('id',''), is_followup=true) }}
       </div>
       {% endfor %}
 
