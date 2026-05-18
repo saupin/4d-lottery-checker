@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Login — 4D Lottery{% endblock %}
+
+{% block header %}
+  <h1>&#128274; Login</h1>
+  <p>Sign in to access My Numbers and Simulation features.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5 col-lg-4">
+    <div class="search-card">
+      {% if error %}
+      <div style="background:#2a1010;border:1px solid #aa3333;color:#f87171;border-radius:8px;padding:.7rem 1rem;font-size:.85rem;margin-bottom:1rem">
+        {{ error }}
+      </div>
+      {% endif %}
+      <form method="POST" action="/login{% if next %}?next={{ next }}{% endif %}">
+        <label class="mb-1 d-block">Username</label>
+        <input type="text" name="username" autocomplete="username" required
+               class="number-input mb-3"
+               style="font-size:1.1rem;letter-spacing:normal;text-align:left;padding:.6rem 1rem">
+
+        <label class="mb-1 d-block">Password</label>
+        <input type="password" name="password" autocomplete="current-password" required
+               class="number-input mb-4"
+               style="font-size:1.1rem;letter-spacing:normal;text-align:left;padding:.6rem 1rem">
+
+        <button type="submit" class="btn-search w-100">Sign In</button>
+      </form>
+      <div class="mt-3 text-center" style="font-size:.82rem;color:#55667a">
+        No account? <a href="/register" style="color:#f5c518;text-decoration:none">Register here</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

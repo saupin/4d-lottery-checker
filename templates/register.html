@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Register — 4D Lottery{% endblock %}
+
+{% block header %}
+  <h1>&#128100; Register</h1>
+  <p>Create an account — access is granted after admin approval.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-5 col-lg-4">
+    {% if success %}
+    <div class="search-card text-center">
+      <div style="font-size:3rem;margin-bottom:.75rem">&#9989;</div>
+      <h5 style="color:#22c55e;margin-bottom:.5rem">Registration submitted!</h5>
+      <p style="color:#8899aa;font-size:.85rem;margin-bottom:1.5rem">
+        Your account is pending admin approval.<br>You can log in once it is approved.
+      </p>
+      <a href="/login" class="btn-search" style="display:inline-block">Go to Login</a>
+    </div>
+    {% else %}
+    <div class="search-card">
+      {% if error %}
+      <div style="background:#2a1010;border:1px solid #aa3333;color:#f87171;border-radius:8px;padding:.7rem 1rem;font-size:.85rem;margin-bottom:1rem">
+        {{ error }}
+      </div>
+      {% endif %}
+      <form method="POST" action="/register">
+        <label class="mb-1 d-block">Username</label>
+        <input type="text" name="username" autocomplete="username" required
+               minlength="3" pattern="[a-zA-Z0-9_]+"
+               title="Letters, numbers and underscores only"
+               class="number-input mb-3"
+               style="font-size:1.1rem;letter-spacing:normal;text-align:left;padding:.6rem 1rem">
+
+        <label class="mb-1 d-block">Password</label>
+        <input type="password" name="password" autocomplete="new-password" required minlength="6"
+               class="number-input mb-3"
+               style="font-size:1.1rem;letter-spacing:normal;text-align:left;padding:.6rem 1rem">
+
+        <label class="mb-1 d-block">Confirm Password</label>
+        <input type="password" name="confirm" autocomplete="new-password" required
+               class="number-input mb-4"
+               style="font-size:1.1rem;letter-spacing:normal;text-align:left;padding:.6rem 1rem">
+
+        <button type="submit" class="btn-search w-100">Register</button>
+      </form>
+      <div class="mt-3 text-center" style="font-size:.82rem;color:#55667a">
+        Already have an account? <a href="/login" style="color:#f5c518;text-decoration:none">Sign in</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

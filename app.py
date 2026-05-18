@@ -9,9 +9,12 @@ import math
 import os
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
-from flask import Flask, jsonify, render_template, request
+from functools import wraps
+from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-4d-change-in-prod")
 
 RESULTS_FILE    = os.path.join(os.path.dirname(__file__), "lot_results.json")
 MY_NUMBERS_FILE = os.path.join(os.path.dirname(__file__), "my_numbers.json")
@@ -583,22 +586,253 @@ def search():
 
 
 @app.route("/simulate")
+@approved_required
 def simulate():
     return render_template("simulate.html", active_page="simulate",
                            next_draw=next_draw_date())
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    if "user_id" in session:
+        return redirect(request.args.get("next") or "/")
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip().lower()
+        password = request.form.get("password", "")
+        if _ADMIN_PASSWORD and username == "admin" and password == _ADMIN_PASSWORD:
+            session["user_id"]  = "admin"
+            session["approved"] = True
+            session["is_admin"] = True
+            return redirect(request.args.get("next") or "/admin")
+        user = _get_user(username)
+        if not user or not check_password_hash(user["password_hash"], password):
+            error = "Invalid username or password."
+        else:
+            session["user_id"]  = username
+            session["approved"] = bool(user.get("approved"))
+            session["is_admin"] = False
+            return redirect(request.args.get("next") or "/")
+    return render_template("login.html", error=error, next=request.args.get("next", ""))
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if "user_id" in session:
+        return redirect("/")
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip().lower()
+        password = request.form.get("password", "")
+        confirm  = request.form.get("confirm", "")
+        if not username or not password:
+            error = "Username and password are required."
+        elif len(username) < 3 or not username.replace("_", "").isalnum():
+            error = "Username must be 3+ characters, letters/numbers/underscores only."
+        elif len(password) < 6:
+            error = "Password must be at least 6 characters."
+        elif password != confirm:
+            error = "Passwords do not match."
+        elif _get_user(username):
+            error = "Username already taken."
+        else:
+            if _create_user(username, generate_password_hash(password)):
+                _tg_notify(f"🆕 New registration: {username} — approve at /admin")
+                return render_template("register.html", success=True)
+            error = "Registration failed. Please try again."
+    return render_template("register.html", error=error, success=False)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+
+@app.route("/admin")
+def admin_panel():
+    if not session.get("is_admin"):
+        return redirect(url_for("login_page", next="/admin"))
+    return render_template("admin.html", users=_list_users(), active_page=None)
+
+
+@app.route("/admin/approve/<username>", methods=["POST"])
+def admin_approve(username):
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 401
+    _set_approved(username.lower(), True)
+    _tg_notify(f"✅ User '{username}' approved — they can now access My Numbers & Simulation.")
+    return redirect("/admin")
+
+
+@app.route("/admin/revoke/<username>", methods=["POST"])
+def admin_revoke(username):
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 401
+    _set_approved(username.lower(), False)
+    return redirect("/admin")
 
 
 
 
 import requests as _req
 
-_SB_URL = os.environ.get("SUPABASE_URL")
-_SB_KEY = os.environ.get("SUPABASE_KEY")
+_SB_URL        = os.environ.get("SUPABASE_URL")
+_SB_KEY        = os.environ.get("SUPABASE_KEY")
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+_TG_TOKEN      = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+_TG_CHAT       = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 
 def _sb_headers():
     return {"apikey": _SB_KEY, "Authorization": f"Bearer {_SB_KEY}",
             "Content-Type": "application/json"}
+
+
+# ── Telegram helper ───────────────────────────────────────────────────────────
+
+def _tg_notify(msg: str) -> None:
+    if _TG_TOKEN and _TG_CHAT:
+        try:
+            _req.post(f"https://api.telegram.org/bot{_TG_TOKEN}/sendMessage",
+                      json={"chat_id": _TG_CHAT, "text": msg}, timeout=5)
+        except Exception:
+            pass
+
+
+# ── User auth (Supabase users_store) ─────────────────────────────────────────
+
+_USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+
+def _users_local() -> dict:
+    if os.path.exists(_USERS_FILE):
+        try:
+            return json.loads(open(_USERS_FILE, encoding="utf-8").read())
+        except Exception:
+            pass
+    return {}
+
+def _users_local_save(users: dict) -> None:
+    with open(_USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=2)
+
+def _get_user(username: str) -> dict | None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}&select=*",
+                         headers=_sb_headers(), timeout=5)
+            rows = r.json()
+            return rows[0] if rows else None
+        except Exception:
+            pass
+    return _users_local().get(username)
+
+def _create_user(username: str, pw_hash: str) -> bool:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.post(f"{_SB_URL}/rest/v1/users_store",
+                          headers={**_sb_headers(), "Prefer": "return=minimal"},
+                          json={"id": username, "password_hash": pw_hash, "approved": False},
+                          timeout=5)
+            return r.status_code in (200, 201)
+        except Exception:
+            return False
+    users = _users_local()
+    if username in users:
+        return False
+    users[username] = {"id": username, "password_hash": pw_hash, "approved": False, "created_at": datetime.utcnow().isoformat()}
+    _users_local_save(users)
+    return True
+
+def _set_approved(username: str, approved: bool) -> None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.patch(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}",
+                       headers={**_sb_headers(), "Prefer": "return=minimal"},
+                       json={"approved": approved}, timeout=5)
+        except Exception:
+            pass
+        return
+    users = _users_local()
+    if username in users:
+        users[username]["approved"] = approved
+        _users_local_save(users)
+
+def _list_users() -> list:
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/users_store?select=*&order=created_at.asc",
+                         headers=_sb_headers(), timeout=5)
+            return r.json() if r.ok else []
+        except Exception:
+            pass
+    return list(_users_local().values())
+
+
+# ── Per-user My Numbers (Supabase user_numbers_store) ────────────────────────
+
+def _load_user_numbers(username: str) -> list:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/user_numbers_store?id=eq.{username}&select=data",
+                         headers=_sb_headers(), timeout=5)
+            rows = r.json()
+            return json.loads(rows[0]["data"]) if rows else []
+        except Exception:
+            pass
+    path = os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json")
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_user_numbers(username: str, data: list) -> None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.post(f"{_SB_URL}/rest/v1/user_numbers_store",
+                      headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
+                      json={"id": username, "data": json.dumps(data, ensure_ascii=False)},
+                      timeout=5)
+        except Exception:
+            pass
+        return
+    with open(os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+# ── Auth decorators ───────────────────────────────────────────────────────────
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Login required"}), 401
+            return redirect(url_for("login_page", next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+def approved_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Login required"}), 401
+            return redirect(url_for("login_page", next=request.path))
+        if not session.get("approved"):
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Account pending approval"}), 403
+            return render_template("pending.html", username=session["user_id"])
+        return f(*args, **kwargs)
+    return decorated
 
 
 def _load_my_numbers() -> list:
@@ -644,11 +878,13 @@ def _save_my_numbers(data: list) -> None:
 
 
 @app.route("/api/my-numbers", methods=["GET"])
+@approved_required
 def api_my_numbers_get():
-    return jsonify(_load_my_numbers())
+    return jsonify(_load_user_numbers(session["user_id"]))
 
 
 @app.route("/api/my-numbers/add", methods=["POST"])
+@approved_required
 def api_my_numbers_add():
     body    = request.get_json(silent=True) or {}
     num     = body.get("num", "").strip()
@@ -661,29 +897,31 @@ def api_my_numbers_add():
     if lottery not in LOTTERY_KEYS:
         lottery = "all"
 
-    data = _load_my_numbers()
+    data = _load_user_numbers(session["user_id"])
     if any(t["num"] == num and t["lottery"] == lottery for t in data):
         return jsonify({"error": "Already tracked"}), 409
 
     data.insert(0, {"num": num, "lottery": lottery, "tries": tries, "date": date})
-    _save_my_numbers(data)
+    _save_user_numbers(session["user_id"], data)
     return jsonify(data)
 
 
 @app.route("/api/my-numbers/remove", methods=["POST"])
+@approved_required
 def api_my_numbers_remove():
     body    = request.get_json(silent=True) or {}
     num     = body.get("num", "").strip()
     lottery = body.get("lottery", "all").strip()
     date    = body.get("date", "")
 
-    data = [t for t in _load_my_numbers()
+    data = [t for t in _load_user_numbers(session["user_id"])
             if not (t["num"] == num and t["lottery"] == lottery and t["date"] == date)]
-    _save_my_numbers(data)
+    _save_user_numbers(session["user_id"], data)
     return jsonify(data)
 
 
 @app.route("/api/my-numbers/check-all", methods=["POST"])
+@approved_required
 def api_check_all():
     from collections import defaultdict
     entries = request.get_json(silent=True) or []
@@ -742,9 +980,11 @@ def api_check_all():
 
 
 @app.route("/api/my-numbers/bulk-add", methods=["POST"])
+@approved_required
 def api_my_numbers_bulk_add():
+    uid     = session["user_id"]
     entries = request.get_json(silent=True) or []
-    data    = _load_my_numbers()
+    data    = _load_user_numbers(uid)
     existing = {(t["num"], t["lottery"]) for t in data}
     today   = datetime.today().strftime("%Y-%m-%d")
     for e in entries:
@@ -759,35 +999,41 @@ def api_my_numbers_bulk_add():
                             "tries": max(1, int(e.get("tries", 10))),
                             "date": e.get("date", today)})
             existing.add((num, lottery))
-    _save_my_numbers(data)
+    _save_user_numbers(uid, data)
     return jsonify(data)
 
 
 @app.route("/api/my-numbers/bulk-remove", methods=["POST"])
+@approved_required
 def api_my_numbers_bulk_remove():
-    keys = request.get_json(silent=True) or []
+    uid     = session["user_id"]
+    keys    = request.get_json(silent=True) or []
     key_set = {(k["num"], k["lottery"], k["date"]) for k in keys}
-    data = [t for t in _load_my_numbers()
-            if (t["num"], t["lottery"], t["date"]) not in key_set]
-    _save_my_numbers(data)
+    data    = [t for t in _load_user_numbers(uid)
+               if (t["num"], t["lottery"], t["date"]) not in key_set]
+    _save_user_numbers(uid, data)
     return jsonify(data)
 
 
 @app.route("/api/my-numbers/bulk-update-tries", methods=["POST"])
+@approved_required
 def api_my_numbers_bulk_update_tries():
+    uid   = session["user_id"]
     body  = request.get_json(silent=True) or {}
     keys  = {(k["num"], k["lottery"], k["date"]) for k in body.get("keys", [])}
     tries = max(1, int(body.get("tries", 10)))
-    data  = _load_my_numbers()
+    data  = _load_user_numbers(uid)
     for t in data:
         if (t["num"], t["lottery"], t["date"]) in keys:
             t["tries"] = tries
-    _save_my_numbers(data)
+    _save_user_numbers(uid, data)
     return jsonify(data)
 
 
 @app.route("/api/my-numbers/update", methods=["POST"])
+@approved_required
 def api_my_numbers_update():
+    uid         = session["user_id"]
     body        = request.get_json(silent=True) or {}
     key_num     = body.get("key_num", "").strip()
     key_lottery = body.get("key_lottery", "all").strip()
@@ -798,12 +1044,12 @@ def api_my_numbers_update():
     if new_lottery not in LOTTERY_KEYS:
         new_lottery = "all"
 
-    data = _load_my_numbers()
+    data = _load_user_numbers(uid)
     for t in data:
         if t["num"] == key_num and t["lottery"] == key_lottery and t["date"] == key_date:
             t["lottery"] = new_lottery
             t["tries"]   = new_tries
-    _save_my_numbers(data)
+    _save_user_numbers(uid, data)
     return jsonify(data)
 
 

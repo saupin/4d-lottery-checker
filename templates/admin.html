@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Admin — 4D Lottery{% endblock %}
+
+{% block header %}
+  <h1>&#128272; Admin Panel</h1>
+  <p>Manage user registrations and approvals.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="section-card">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="section-title mb-0">Users ({{ users|length }})</div>
+        <a href="/logout" style="font-size:.78rem;color:#55667a;text-decoration:none">Logout</a>
+      </div>
+
+      {% if not users %}
+      <p style="color:#8899aa;font-size:.85rem;text-align:center;padding:1.5rem 0">No users registered yet.</p>
+      {% else %}
+      <div style="overflow-x:auto">
+        <table class="table draw-table mb-0">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Status</th>
+              <th>Registered</th>
+              <th style="width:120px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr>
+              <td style="font-family:monospace;font-weight:700;font-size:.92rem">{{ u.id }}</td>
+              <td>
+                {% if u.approved %}
+                <span style="color:#22c55e;font-weight:700;font-size:.78rem">&#9989; Approved</span>
+                {% else %}
+                <span style="color:#f5c518;font-weight:700;font-size:.78rem">&#9203; Pending</span>
+                {% endif %}
+              </td>
+              <td style="font-size:.75rem;color:#8899aa">
+                {{ u.created_at[:10] if u.created_at else '—' }}
+              </td>
+              <td>
+                {% if u.approved %}
+                <form method="POST" action="/admin/revoke/{{ u.id }}" style="display:inline">
+                  <button type="submit" class="btn-tbl btn-remove">Revoke</button>
+                </form>
+                {% else %}
+                <form method="POST" action="/admin/approve/{{ u.id }}" style="display:inline">
+                  <button type="submit" class="btn-tbl" style="color:#22c55e;border-color:#22c55e">&#9989; Approve</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
