@@ -1235,12 +1235,17 @@ def api_my_numbers_update():
 def _save_feedback(user_id: str, text: str, analysis: str = "") -> None:
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     if _SB_URL and _SB_KEY:
+        hdrs = {**_sb_headers(), "Prefer": "return=minimal"}
+        payload = {"user_id": user_id, "feedback": text,
+                   "claude_analysis": analysis, "submitted_at": now}
         try:
-            _req.post(f"{_SB_URL}/rest/v1/feedback_store",
-                      headers={**_sb_headers(), "Prefer": "return=minimal"},
-                      json={"user_id": user_id, "feedback": text,
-                            "claude_analysis": analysis, "submitted_at": now},
-                      timeout=5)
+            r = _req.post(f"{_SB_URL}/rest/v1/feedback_store",
+                          headers=hdrs, json=payload, timeout=5)
+            if not r.ok and analysis:
+                # claude_analysis column may not exist yet — save without it
+                payload.pop("claude_analysis")
+                _req.post(f"{_SB_URL}/rest/v1/feedback_store",
+                          headers=hdrs, json=payload, timeout=5)
         except Exception:
             pass
         return
