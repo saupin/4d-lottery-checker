@@ -171,11 +171,12 @@
   }
   .podium-num {
     display: block; font-family: monospace; font-size: 1.15rem;
-    font-weight: 700; color: #000000; text-decoration: none; letter-spacing: .08rem;
+    font-weight: 700; text-decoration: none; letter-spacing: .08rem;
   }
-  a.podium-num:hover { color: #000000; text-decoration: underline; }
+  a.podium-num, a.podium-num:link, a.podium-num:visited { color: #1a1a1a; }
+  a.podium-num:hover { color: #b45309; text-decoration: underline; }
   .podium-empty { color: #888888; font-weight: 400; }
-  .podium-num.hl { color: #000000 !important; background: #fff7d6;
+  .podium-num.hl { color: #92400e !important; background: #fff7d6;
                    border-radius: 4px; padding: 0 .15rem; }
 
   /* ── Tier blocks (Specials / Consolations) ── */
@@ -201,16 +202,17 @@
   .tier-chip {
     background: #ffffff; border: 1px solid #dddddd; border-radius: 5px;
     font-family: monospace; font-weight: 600; font-size: .82rem;
-    color: #000000; text-align: center; padding: .22rem .1rem;
+    text-align: center; padding: .22rem .1rem;
     text-decoration: none; transition: all .15s;
   }
+  a.tier-chip, a.tier-chip:link, a.tier-chip:visited { color: #1a1a1a; }
   .tier-block-special .tier-chip { border-color: #cfe7d7; }
-  .tier-block-special .tier-chip:hover {
-    border-color: #1e7e34; color: #000000; background: #e7f5ec;
+  .tier-block-special a.tier-chip:hover {
+    border-color: #1e7e34; color: #1e7e34; background: #e7f5ec;
   }
   .tier-block-consolation .tier-chip { border-color: #cfdef0; }
-  .tier-block-consolation .tier-chip:hover {
-    border-color: #155fa0; color: #000000; background: #e3eef9;
+  .tier-block-consolation a.tier-chip:hover {
+    border-color: #155fa0; color: #155fa0; background: #e3eef9;
   }
   .tier-chip.hl {
     background: #f5c518 !important; border-color: #f5c518 !important;
