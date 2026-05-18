@@ -406,7 +406,6 @@
     <a href="/draws" class="nav-link {% if active_page == 'draws' %}active{% endif %}">Draws</a>
     <a href="/analysis" class="nav-link {% if active_page == 'analysis' %}active{% endif %}">Analysis</a>
     <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
-    <a href="/payouts" class="nav-link {% if active_page == 'payouts' %}active{% endif %}">Payouts</a>
     {% if session.get('approved') %}
     <a href="/simulate" class="nav-link {% if active_page == 'simulate' %}active{% endif %}">Simulation</a>
     {% else %}
@@ -416,6 +415,7 @@
     {% if session.get('user_id') %}
     <a href="/feedback" class="nav-link {% if active_page == 'feedback' %}active{% endif %}">Feedback</a>
     {% endif %}
+    <a href="/payouts" class="nav-link {% if active_page == 'payouts' %}active{% endif %}">Payouts</a>
     <div class="ms-auto d-flex align-items-center gap-1">
       {% if session.get('user_id') %}
         <span style="font-size:.75rem;color:#55aacc;padding:.35rem .5rem">&#128100; {{ session['user_id'] }}</span>
