@@ -31,73 +31,70 @@
       <div id="filter-count" style="font-size:.78rem;margin-top:.5rem;min-height:1.2em"></div>
 
       <!-- Specials / Consolations toggles -->
-      <div style="display:flex;gap:.5rem;margin-top:.85rem;flex-wrap:wrap">
-        <a href="#" id="toggleSpecials" class="tier-toggle" role="button">Specials</a>
-        <a href="#" id="toggleConsolations" class="tier-toggle" role="button">Consolations</a>
+      <div style="display:flex;gap:.5rem;margin-top:.85rem;flex-wrap:wrap;align-items:center">
+        <span style="font-size:.72rem;color:#55667a;text-transform:uppercase;letter-spacing:.5px;margin-right:.2rem">Show:</span>
+        <a href="#" id="toggleSpecials" class="tier-toggle" role="button">
+          <span class="tier-toggle-dot tier-toggle-dot-special"></span>Specials
+        </a>
+        <a href="#" id="toggleConsolations" class="tier-toggle" role="button">
+          <span class="tier-toggle-dot tier-toggle-dot-consolation"></span>Consolations
+        </a>
       </div>
     </div>
 
     <!-- Draw groups -->
     <div id="draws-container">
     {% for row in rows %}
-    <div class="draw-group mb-4" data-date="{{ row.date }}">
-      <div class="mb-1" style="color:#f5c518;font-weight:600;font-size:.9rem">{{ row.date_fmt }}</div>
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-      <table class="table draw-table mb-0">
-        <thead>
-          <tr>
-            <th>Lottery</th>
-            <th>&#127941; 1st</th>
-            <th>&#127942; 2nd</th>
-            <th>&#127943; 3rd</th>
-          </tr>
-        </thead>
+    <div class="draw-group" data-date="{{ row.date }}">
+      <div class="draw-date-heading">{{ row.date_fmt }}</div>
+      <div class="lot-cards">
         {% for lot in row.lotteries %}
-        <tbody class="lot-unit">
-          <tr class="lot-row">
-            <td>
-              <span class="lottery-name">{{ lot.label }}</span><br>
-              <span style="font-size:.75rem;color:#55aacc">#{{ lot.draw_number }}</span>
-            </td>
-            <td>
+        <div class="lot-unit lot-card">
+          <div class="lot-card-header">
+            <span class="lot-name">{{ lot.label }}</span>
+            <span class="lot-draw">#{{ lot.draw_number }}</span>
+          </div>
+
+          <div class="podium">
+            <div class="podium-cell tier-1st">
+              <div class="podium-tier">&#127941; 1st</div>
               {% if lot.p1 %}
-              <a href="/?num={{ lot.p1 }}" class="prize-num prize-link">{{ lot.p1 }}</a>
-              {% else %}<span style="color:#55667a">—</span>{% endif %}
-            </td>
-            <td>
+                <a href="/?num={{ lot.p1 }}" class="podium-num prize-link">{{ lot.p1 }}</a>
+              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
+            </div>
+            <div class="podium-cell tier-2nd">
+              <div class="podium-tier">&#127942; 2nd</div>
               {% if lot.p2 %}
-              <a href="/?num={{ lot.p2 }}" class="prize-num prize-link">{{ lot.p2 }}</a>
-              {% else %}<span style="color:#55667a">—</span>{% endif %}
-            </td>
-            <td>
+                <a href="/?num={{ lot.p2 }}" class="podium-num prize-link">{{ lot.p2 }}</a>
+              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
+            </div>
+            <div class="podium-cell tier-3rd">
+              <div class="podium-tier">&#127943; 3rd</div>
               {% if lot.p3 %}
-              <a href="/?num={{ lot.p3 }}" class="prize-num prize-link">{{ lot.p3 }}</a>
-              {% else %}<span style="color:#55667a">—</span>{% endif %}
-            </td>
-          </tr>
+                <a href="/?num={{ lot.p3 }}" class="podium-num prize-link">{{ lot.p3 }}</a>
+              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
+            </div>
+          </div>
+
           {% if lot.specials %}
-          <tr class="lot-specials" style="display:none">
-            <td colspan="4" class="tier-detail">
-              <span class="tier-label tier-label-special">Specials</span>
-              <span class="tier-nums">
-                {% for num in lot.specials %}<a href="/?num={{ num }}" class="prize-link">{{ num }}</a>{% if not loop.last %} <span class="tier-sep">·</span> {% endif %}{% endfor %}
-              </span>
-            </td>
-          </tr>
+          <div class="lot-specials tier-block tier-block-special" style="display:none">
+            <div class="tier-block-label tier-label-special">Specials</div>
+            <div class="tier-chips">
+              {% for num in lot.specials %}<a href="/?num={{ num }}" class="tier-chip prize-link">{{ num }}</a>{% endfor %}
+            </div>
+          </div>
           {% endif %}
+
           {% if lot.consolations %}
-          <tr class="lot-consolations" style="display:none">
-            <td colspan="4" class="tier-detail">
-              <span class="tier-label tier-label-consolation">Consolations</span>
-              <span class="tier-nums">
-                {% for num in lot.consolations %}<a href="/?num={{ num }}" class="prize-link">{{ num }}</a>{% if not loop.last %} <span class="tier-sep">·</span> {% endif %}{% endfor %}
-              </span>
-            </td>
-          </tr>
+          <div class="lot-consolations tier-block tier-block-consolation" style="display:none">
+            <div class="tier-block-label tier-label-consolation">Consolations</div>
+            <div class="tier-chips">
+              {% for num in lot.consolations %}<a href="/?num={{ num }}" class="tier-chip prize-link">{{ num }}</a>{% endfor %}
+            </div>
+          </div>
           {% endif %}
-        </tbody>
+        </div>
         {% endfor %}
-      </table>
       </div>
     </div>
     {% endfor %}
@@ -109,36 +106,128 @@
 <style>
   #drawFilter:focus { outline: none; border-color: #f5c518; }
   #drawFilter::placeholder { color: #2a3f55; letter-spacing: .3rem; }
-  .prize-link.hl { color: #f5c518 !important; }
 
+  /* ── Toggle pills ── */
   .tier-toggle {
     background: #1f2e40; color: #8899aa; border: 1px solid #2a3f55;
     border-radius: 20px; padding: .25rem .85rem; font-size: .76rem;
     font-weight: 600; letter-spacing: .4px; text-decoration: none;
-    transition: all .15s;
+    transition: all .15s; display: inline-flex; align-items: center; gap: .4rem;
   }
   .tier-toggle:hover { border-color: #f5c518; color: #f5c518; }
   .tier-toggle.active { background: #f5c518; border-color: #f5c518; color: #0f1923; }
   .tier-toggle.active:hover { background: #ffd740; color: #0f1923; }
+  .tier-toggle-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  }
+  .tier-toggle-dot-special      { background: #1e7e34; }
+  .tier-toggle-dot-consolation  { background: #155fa0; }
 
-  .tier-detail { background: #f7f7f7 !important; padding: .55rem 1rem !important; }
-  .tier-label {
-    display: inline-block; font-size: .68rem; font-weight: 700;
-    letter-spacing: .6px; text-transform: uppercase; color: #fff;
-    border-radius: 4px; padding: .15rem .55rem; margin-right: .6rem;
-    vertical-align: middle;
+  /* ── Draw date heading ── */
+  .draw-group { margin-bottom: 2rem; }
+  .draw-date-heading {
+    color: #f5c518; font-weight: 700; font-size: .95rem;
+    letter-spacing: .5px; padding: .35rem 0; margin-bottom: .75rem;
+    border-bottom: 1px solid #243447;
+  }
+
+  /* ── Lottery cards grid ── */
+  .lot-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: .85rem;
+  }
+  .lot-card {
+    background: #ffffff; border: 1px solid #dddddd; border-radius: 10px;
+    padding: .85rem 1rem;
+  }
+  .lot-card-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: .5rem; padding-bottom: .55rem; margin-bottom: .65rem;
+    border-bottom: 1px solid #eeeeee;
+  }
+  .lot-card-header .lot-name {
+    font-weight: 700; font-size: .92rem; color: #000000; letter-spacing: .2px;
+  }
+  .lot-card-header .lot-draw {
+    font-size: .72rem; color: #55aacc; font-family: monospace;
+  }
+
+  /* ── Podium (1st / 2nd / 3rd) ── */
+  .podium {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: .4rem;
+  }
+  .podium-cell {
+    background: #f7f7f7; border-radius: 8px; padding: .45rem .35rem;
+    text-align: center; border-top: 3px solid;
+  }
+  .podium-cell.tier-1st { border-top-color: var(--gold); }
+  .podium-cell.tier-2nd { border-top-color: var(--silver); }
+  .podium-cell.tier-3rd { border-top-color: var(--bronze); }
+  .podium-tier {
+    font-size: .65rem; font-weight: 700; color: #555555;
+    text-transform: uppercase; letter-spacing: .5px; margin-bottom: .15rem;
+  }
+  .podium-num {
+    display: block; font-family: monospace; font-size: 1.15rem;
+    font-weight: 700; color: #c8960a; text-decoration: none; letter-spacing: .08rem;
+  }
+  a.podium-num:hover { color: #f5c518; text-decoration: underline; }
+  .podium-empty { color: #bbbbbb; font-weight: 400; }
+  .podium-num.hl { color: #d97706 !important; background: #fff7d6;
+                   border-radius: 4px; padding: 0 .15rem; }
+
+  /* ── Tier blocks (Specials / Consolations) ── */
+  .tier-block {
+    margin-top: .65rem; padding: .55rem .65rem; border-radius: 8px;
+    border-left: 3px solid;
+  }
+  .tier-block-special     { background: #f1faf3; border-left-color: #1e7e34; }
+  .tier-block-consolation { background: #f0f6fc; border-left-color: #155fa0; }
+  .tier-block-label {
+    display: inline-block; font-size: .64rem; font-weight: 700;
+    letter-spacing: .6px; text-transform: uppercase; color: #ffffff;
+    border-radius: 4px; padding: .12rem .5rem; margin-bottom: .4rem;
   }
   .tier-label-special     { background: #1e7e34; }
   .tier-label-consolation { background: #155fa0; }
-  .tier-nums { font-family: monospace; font-size: .85rem; color: #333; }
-  .tier-nums a.prize-link { color: #336699; text-decoration: none; }
-  .tier-nums a.prize-link:hover { color: #c8960a; text-decoration: underline; }
-  .tier-sep { color: #bbb; }
 
+  .tier-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+    gap: .3rem;
+  }
+  .tier-chip {
+    background: #ffffff; border: 1px solid #dddddd; border-radius: 5px;
+    font-family: monospace; font-weight: 600; font-size: .82rem;
+    color: #333333; text-align: center; padding: .22rem .1rem;
+    text-decoration: none; transition: all .15s;
+  }
+  .tier-block-special .tier-chip { border-color: #cfe7d7; }
+  .tier-block-special .tier-chip:hover {
+    border-color: #1e7e34; color: #1e7e34; background: #e7f5ec;
+  }
+  .tier-block-consolation .tier-chip { border-color: #cfdef0; }
+  .tier-block-consolation .tier-chip:hover {
+    border-color: #155fa0; color: #155fa0; background: #e3eef9;
+  }
+  .tier-chip.hl {
+    background: #f5c518 !important; border-color: #f5c518 !important;
+    color: #0f1923 !important;
+  }
+
+  /* ── Mobile ── */
   @media (max-width: 767px) {
-    .tier-detail { padding: .4rem .55rem !important; }
-    .tier-label  { font-size: .62rem; padding: .12rem .45rem; margin-right: .4rem; }
-    .tier-nums   { font-size: .75rem; }
+    .lot-cards { grid-template-columns: 1fr; gap: .65rem; }
+    .lot-card  { padding: .7rem .8rem; }
+    .lot-card-header .lot-name { font-size: .85rem; }
+    .podium-cell { padding: .35rem .25rem; }
+    .podium-tier { font-size: .6rem; }
+    .podium-num  { font-size: 1rem; }
+    .tier-chips  { grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: .25rem; }
+    .tier-chip   { font-size: .76rem; padding: .2rem .08rem; }
+    .tier-block  { padding: .45rem .55rem; }
   }
 </style>
 
@@ -189,10 +278,10 @@
 
         if (hit) {
           unit.style.display = '';
-          const specRow = unit.querySelector('.lot-specials');
-          const consRow = unit.querySelector('.lot-consolations');
-          if (specRow) specRow.style.display = showSpecials     ? '' : 'none';
-          if (consRow) consRow.style.display = showConsolations ? '' : 'none';
+          const specBlock = unit.querySelector('.lot-specials');
+          const consBlock = unit.querySelector('.lot-consolations');
+          if (specBlock) specBlock.style.display = showSpecials     ? '' : 'none';
+          if (consBlock) consBlock.style.display = showConsolations ? '' : 'none';
 
           links.forEach(l => l.classList.toggle('hl', q !== '' && l.textContent.trim() === q));
 
