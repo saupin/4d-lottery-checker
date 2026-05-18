@@ -24,6 +24,8 @@ _SB_KEY         = os.environ.get("SUPABASE_KEY")
 _ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 _TG_TOKEN       = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 _TG_CHAT        = os.environ.get("TELEGRAM_CHAT_ID", "")
+_GITHUB_TOKEN   = os.environ.get("GITHUB_TOKEN", "")
+_GITHUB_REPO    = os.environ.get("GITHUB_REPO", "saupin/4d-lottery-checker")
 
 
 def _sb_headers():
@@ -1039,7 +1041,8 @@ def admin_feedback():
     if not session.get("is_admin"):
         return redirect(url_for("login_page", next="/admin/feedback"))
     threads = _build_threads(_list_feedback())
-    return render_template("admin_feedback.html", threads=threads, active_page=None)
+    return render_template("admin_feedback.html", threads=threads, active_page=None,
+                           github_enabled=bool(_GITHUB_TOKEN))
 
 
 @app.route("/admin/feedback/update/<int:item_id>", methods=["POST"])
@@ -1053,6 +1056,91 @@ def admin_feedback_update(item_id):
     admin_reply = body.get("admin_reply", "").strip() or None
     ok = _update_feedback(item_id, status=status, admin_reply=admin_reply)
     return jsonify({"ok": ok})
+
+
+@app.route("/admin/feedback/create-issue/<int:item_id>", methods=["POST"])
+def admin_feedback_create_issue(item_id):
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    if body.get("csrf_token") != session.get("csrf_token"):
+        return jsonify({"error": "CSRF"}), 403
+    if not _GITHUB_TOKEN:
+        return jsonify({"error": "GITHUB_TOKEN env var not set"}), 500
+
+    # Load all feedback and find the root of this thread.
+    all_items = _list_feedback()
+    id_map    = {item.get("id"): item for item in all_items}
+    item      = id_map.get(item_id)
+    if not item:
+        return jsonify({"error": "Item not found"}), 404
+    root_id = item.get("parent_id") or item_id
+    root    = id_map.get(root_id, item)
+
+    # Build ordered thread: root → admin reply → follow-ups → their admin replies
+    msgs: list[dict] = []
+    def _add(row, role):
+        msgs.append({"role": role,
+                     "text": row.get("feedback") or row.get("text", ""),
+                     "at":   (row.get("submitted_at") or "")[:16].replace("T", " ")})
+        if row.get("admin_reply"):
+            msgs.append({"role": "admin",
+                         "text": row["admin_reply"],
+                         "at":   (row.get("reply_at") or "")[:16].replace("T", " ")})
+    _add(root, "user")
+    followups = sorted([i for i in all_items if i.get("parent_id") == root_id],
+                       key=lambda x: x.get("submitted_at") or "")
+    for fu in followups:
+        _add(fu, "user")
+
+    # Format conversation block
+    conv_lines = []
+    for m in msgs:
+        label = "**Admin:**" if m["role"] == "admin" else f"**User (`{root.get('user_id','?')}`):**"
+        ts    = f" _{m['at']}_" if m["at"] else ""
+        conv_lines.append(f"{label}{ts}\n> {m['text']}\n")
+    conv_block = "\n".join(conv_lines)
+
+    analysis = root.get("claude_analysis", "") or "_No analysis available._"
+
+    title_src = root.get("feedback", "")
+    title     = "[Feedback] " + (title_src[:67] + "…" if len(title_src) > 67 else title_src)
+
+    issue_body = f"""## User Feedback — Implementation Request
+
+{conv_block}
+---
+
+### Claude's analysis
+{analysis}
+
+---
+
+### Task
+
+Based on the feedback thread above, please implement the requested change in this **4D lottery tracking web app**.
+
+- Backend: `app.py` (Flask, Supabase via REST, Vercel serverless)
+- Templates: `templates/` (Jinja2 + Bootstrap 5)
+- Static assets: `static/`
+
+Make the minimal change needed to address the feedback. If the request is ambiguous, choose the most reasonable interpretation and leave a comment explaining your choice.
+"""
+
+    r = _req.post(
+        f"https://api.github.com/repos/{_GITHUB_REPO}/issues",
+        headers={
+            "Authorization": f"token {_GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        json={"title": title, "body": issue_body, "labels": ["feedback"]},
+        timeout=10,
+    )
+    if not r.ok:
+        return jsonify({"error": r.text}), 500
+    issue = r.json()
+    return jsonify({"issue_url": issue["html_url"], "issue_number": issue["number"]})
 
 
 @app.route("/api/feedback/replies")
