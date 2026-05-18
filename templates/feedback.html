@@ -26,12 +26,11 @@
         <span style="font-size:.75rem;color:#55aacc">{{ session['user_id'] }}</span>
       </div>
 
-      <!-- Reply context banner (hidden by default) -->
       <div id="reply-context" style="display:none;background:#0d1b2a;border-left:3px solid #f5c518;
            padding:.4rem .75rem;border-radius:0 6px 6px 0;font-size:.78rem;
            color:#8899aa;margin-bottom:.75rem;margin-top:.5rem">
         Replying to: <em id="reply-snippet" style="color:#aabbcc"></em>
-        <button onclick="cancelReply()"
+        <button type="button" onclick="cancelReply()"
                 style="background:none;border:none;color:#55667a;cursor:pointer;
                        font-size:.75rem;margin-left:.5rem">&#10005; cancel</button>
       </div>
@@ -68,7 +67,6 @@
     </div>
 
     {% else %}
-    <!-- Success banner -->
     <div style="background:#0d2010;border:1px solid #22c55e;color:#22c55e;border-radius:12px;
                 padding:1.25rem;text-align:center;margin-bottom:1.5rem">
       <div style="font-size:1.8rem;margin-bottom:.35rem">&#9989;</div>
@@ -81,63 +79,89 @@
     <div class="section-title mb-3">&#128172; Your Conversations</div>
 
     {% for thread in threads %}
+    {% set tid = thread.get('id', '') %}
     <div style="background:#172130;border:1px solid #243447;border-radius:12px;
                 padding:1.1rem;margin-bottom:1.25rem">
 
-      {# ── Macro: render one message bubble ── #}
-      {% macro msg_bubble(item, thread_id, is_followup=false) %}
-      <div style="{% if is_followup %}margin-left:1.25rem;border-left:2px solid #243447;padding-left:.85rem;{% endif %}">
+      <!-- ── Root message ── -->
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem">
+        <span style="font-size:.7rem;font-weight:700;color:#55aacc;text-transform:uppercase;letter-spacing:.4px">You</span>
+        <span style="font-size:.68rem;color:#55667a">
+          {{ thread.submitted_at[:16].replace('T',' ') if thread.submitted_at else '' }}
+        </span>
+      </div>
+      <div style="font-size:.88rem;color:#e8eaf0;line-height:1.6;margin-bottom:.6rem">
+        {{ thread.feedback }}
+      </div>
 
-        <!-- User message -->
+      {% if thread.get('admin_reply') %}
+      <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
+                  border-radius:0 6px 6px 0;margin-bottom:.5rem">
+        <div style="font-size:.68rem;font-weight:700;color:#55aacc;text-transform:uppercase;
+                    letter-spacing:.4px;margin-bottom:.2rem">
+          &#128100; Admin
+          {% if thread.get('reply_at') %}
+          <span style="font-weight:400;color:#55667a">&mdash; {{ thread.reply_at[:16].replace('T',' ') }}</span>
+          {% endif %}
+        </div>
+        <div style="font-size:.85rem;color:#c8e0f0;line-height:1.6">{{ thread.admin_reply }}</div>
+      </div>
+      {% if not success %}
+      <button type="button"
+              data-tid="{{ tid }}"
+              data-reply="{{ thread.admin_reply | e }}"
+              onclick="replyTo(this)"
+              style="background:none;border:1px solid #2a3f55;color:#55667a;border-radius:6px;
+                     padding:.2rem .6rem;font-size:.72rem;cursor:pointer;transition:all .15s;
+                     margin-bottom:.6rem"
+              onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
+              onmouseout="this.style.borderColor='#2a3f55';this.style.color='#55667a'">
+        &#8617; Reply
+      </button>
+      {% endif %}
+      {% endif %}
+
+      <!-- ── Follow-ups ── -->
+      {% for fu in thread.get('followups', []) %}
+      <div style="margin-top:.75rem;margin-left:1.25rem;border-left:2px solid #243447;padding-left:.85rem">
+
         <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.35rem">
-          <span style="font-size:.7rem;font-weight:700;color:#55aacc;text-transform:uppercase;
-                       letter-spacing:.4px">You</span>
+          <span style="font-size:.7rem;font-weight:700;color:#f5c518;text-transform:uppercase;letter-spacing:.4px">You (reply)</span>
           <span style="font-size:.68rem;color:#55667a">
-            {{ item.submitted_at[:16].replace('T',' ') if item.submitted_at else '' }}
+            {{ fu.submitted_at[:16].replace('T',' ') if fu.submitted_at else '' }}
           </span>
         </div>
         <div style="font-size:.88rem;color:#e8eaf0;line-height:1.6;margin-bottom:.6rem">
-          {{ item.feedback }}
+          {{ fu.feedback }}
         </div>
 
-        <!-- Admin reply -->
-        {% if item.get('admin_reply') %}
+        {% if fu.get('admin_reply') %}
         <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
                     border-radius:0 6px 6px 0;margin-bottom:.5rem">
           <div style="font-size:.68rem;font-weight:700;color:#55aacc;text-transform:uppercase;
                       letter-spacing:.4px;margin-bottom:.2rem">
             &#128100; Admin
-            {% if item.get('reply_at') %}
-            <span style="font-weight:400;color:#55667a">
-              &mdash; {{ item.reply_at[:16].replace('T',' ') }}
-            </span>
+            {% if fu.get('reply_at') %}
+            <span style="font-weight:400;color:#55667a">&mdash; {{ fu.reply_at[:16].replace('T',' ') }}</span>
             {% endif %}
           </div>
-          <div style="font-size:.85rem;color:#c8e0f0;line-height:1.6">{{ item.admin_reply }}</div>
+          <div style="font-size:.85rem;color:#c8e0f0;line-height:1.6">{{ fu.admin_reply }}</div>
         </div>
-
         {% if not success %}
-        <button onclick="replyTo({{ thread_id }}, {{ item.get('admin_reply','')|tojson }})"
+        <button type="button"
+                data-tid="{{ tid }}"
+                data-reply="{{ fu.admin_reply | e }}"
+                onclick="replyTo(this)"
                 style="background:none;border:1px solid #2a3f55;color:#55667a;border-radius:6px;
                        padding:.2rem .6rem;font-size:.72rem;cursor:pointer;transition:all .15s;
                        margin-bottom:.4rem"
                 onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
                 onmouseout="this.style.borderColor='#2a3f55';this.style.color='#55667a'">
-          ↩ Reply
+          &#8617; Reply
         </button>
         {% endif %}
         {% endif %}
 
-      </div>
-      {% endmacro %}
-
-      <!-- Root message -->
-      {{ msg_bubble(thread, thread.get('id','')) }}
-
-      <!-- Follow-up messages -->
-      {% for fu in thread.get('followups', []) %}
-      <div style="margin-top:.75rem">
-        {{ msg_bubble(fu, thread.get('id',''), is_followup=true) }}
       </div>
       {% endfor %}
 
@@ -153,29 +177,32 @@
     const len = el.value.length;
     const c = document.getElementById('charCount');
     const w = document.getElementById('charWarn');
-    c.textContent = `${len} / 500`;
+    c.textContent  = `${len} / 500`;
     c.style.color  = len >= 500 ? '#f97316' : len >= 450 ? '#f5c518' : '#55667a';
     w.style.display = len >= 500 ? 'inline' : 'none';
   }
 
-  function replyTo(threadId, adminReply) {
-    document.getElementById('parent_id_field').value = threadId;
-    const snippet = adminReply.length > 70 ? adminReply.slice(0, 70) + '…' : adminReply;
-    document.getElementById('reply-snippet').textContent = '"' + snippet + '"';
+  function replyTo(btn) {
+    const threadId   = btn.dataset.tid;
+    const adminReply = btn.dataset.reply;
+    const snippet    = adminReply.length > 70 ? adminReply.slice(0, 70) + '…' : adminReply;
+
+    document.getElementById('parent_id_field').value  = threadId;
+    document.getElementById('reply-snippet').textContent = '“' + snippet + '”';
     document.getElementById('reply-context').style.display = 'block';
-    document.getElementById('form-title').textContent = '↩ Reply';
-    document.getElementById('submit-btn').textContent = '↩ Send Reply';
+    document.getElementById('form-title').textContent  = '↩ Reply';
+    document.getElementById('submit-btn').textContent  = '↩ Send Reply';
     document.getElementById('feedbackText').placeholder = 'Type your reply…';
     document.getElementById('feedback-form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    document.getElementById('feedbackText').focus();
+    setTimeout(() => document.getElementById('feedbackText').focus(), 400);
   }
 
   function cancelReply() {
-    document.getElementById('parent_id_field').value = '';
+    document.getElementById('parent_id_field').value   = '';
     document.getElementById('reply-context').style.display = 'none';
-    document.getElementById('form-title').textContent = '💬 Submit Feedback';
-    document.getElementById('submit-btn').textContent = '💬 Submit Feedback';
-    document.getElementById('feedbackText').placeholder = 'Tell us what\'s working, what\'s broken, or what you\'d like to see…';
+    document.getElementById('form-title').textContent  = '💬 Submit Feedback';
+    document.getElementById('submit-btn').textContent  = '💬 Submit Feedback';
+    document.getElementById('feedbackText').placeholder = 'Tell us what’s working, what’s broken, or what you’d like to see…';
   }
 </script>
 {% endblock %}
