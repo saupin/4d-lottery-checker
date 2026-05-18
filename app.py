@@ -368,6 +368,25 @@ def load_results() -> dict:
     return _results_cache
 
 
+_predict_cache: dict | None = None
+_predict_cache_mtime: float = 0.0
+
+def _get_predict_cache() -> dict:
+    """Build and cache full ranked scores for all lottery keys, keyed by mtime of results file."""
+    global _predict_cache, _predict_cache_mtime
+    mtime = os.path.getmtime(RESULTS_FILE) if os.path.exists(RESULTS_FILE) else 0.0
+    if _predict_cache is None or mtime != _predict_cache_mtime:
+        data = load_results()
+        cache = {}
+        for key, lot in LOTTERY_KEYS.items():
+            model  = build_prediction_model(data, lot)
+            ranked = get_ranked_scores(model)
+            cache[key] = {"ranked": ranked, "rank_map": {r["num"]: r for r in ranked}}
+        _predict_cache      = cache
+        _predict_cache_mtime = mtime
+    return _predict_cache
+
+
 def search_number(number: str, data: dict) -> list[dict]:
     matches = []
     for date_str in sorted(data.keys(), reverse=True):
@@ -688,12 +707,9 @@ LOTTERY_KEYS = {"all": None, "damacai": "damacai", "magnum": "magnum", "toto": "
 
 @app.route("/predict")
 def predict():
-    data = load_results()
-    top20s = {}
-    for key, lot in LOTTERY_KEYS.items():
-        model = build_prediction_model(data, lot)
-        top20s[key] = get_ranked_scores(model)[:20]
-    return render_template("predict.html", top20s=top20s, total_dates=len(data),
+    cache  = _get_predict_cache()
+    top20s = {k: v["ranked"][:20] for k, v in cache.items()}
+    return render_template("predict.html", top20s=top20s, total_dates=len(load_results()),
                            next_draw=next_draw_date(), active_page="predict")
 
 
@@ -705,11 +721,8 @@ def api_score():
         return jsonify({"error": "Enter a valid 4-digit number"}), 400
     if lottery not in LOTTERY_KEYS:
         lottery = "all"
-    data = load_results()
-    model = build_prediction_model(data, LOTTERY_KEYS[lottery])
-    ranked = get_ranked_scores(model)
-    rank_map = {r["num"]: r for r in ranked}
-    return jsonify(rank_map[number])
+    cache = _get_predict_cache()
+    return jsonify(cache[lottery]["rank_map"][number])
 
 
 @app.route("/analysis")
