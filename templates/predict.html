@@ -142,18 +142,52 @@
   }
 
   async function addAllToSim(tabKey, allBtn) {
-    const cards = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
+    const cards      = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
     const allTracked = cards.every(b => b.classList.contains('added') || b.classList.contains('already'));
-    allBtn.disabled = true;
+    allBtn.disabled  = true;
     allBtn.textContent = 'Working…';
-    for (const btn of cards) {
-      const isTracked = btn.classList.contains('added') || btn.classList.contains('already');
-      if (allTracked ? isTracked : !isTracked) {
-        const idParts = btn.id.split('-');
-        const num     = idParts[idParts.length - 1];
-        await addToSim(num, tabKey, btn);
+    const today = new Date().toISOString().slice(0,10);
+
+    try {
+      if (allTracked) {
+        // Bulk remove all tracked cards
+        const keys = cards
+          .filter(b => b.classList.contains('added') || b.classList.contains('already'))
+          .map(b => {
+            const idParts = b.id.split('-');
+            return { num: idParts[idParts.length-1], lottery: tabKey, date: b.dataset.date || today };
+          });
+        await fetch('/api/my-numbers/bulk-remove', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(keys)
+        });
+        cards.forEach(b => {
+          b.textContent = '+ Track';
+          b.classList.remove('added','already');
+          delete b.dataset.date;
+        });
+      } else {
+        // Bulk add untracked cards
+        const toAdd = cards
+          .filter(b => !b.classList.contains('added') && !b.classList.contains('already'))
+          .map(b => {
+            const idParts = b.id.split('-');
+            return { num: idParts[idParts.length-1], lottery: tabKey, tries: 10, date: today };
+          });
+        await fetch('/api/my-numbers/bulk-add', {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(toAdd)
+        });
+        cards.forEach(b => {
+          if (!b.classList.contains('added') && !b.classList.contains('already')) {
+            b.textContent = '✓ Tracked';
+            b.classList.add('added');
+            b.dataset.date = today;
+          }
+        });
       }
+    } catch(e) {
+      console.error('Bulk track error:', e);
     }
+
     allBtn.disabled = false;
     updateAllBtn(tabKey);
   }
