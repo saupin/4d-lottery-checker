@@ -675,6 +675,29 @@ def api_my_numbers_remove():
     return jsonify(data)
 
 
+@app.route("/api/my-numbers/bulk-remove", methods=["POST"])
+def api_my_numbers_bulk_remove():
+    keys = request.get_json(silent=True) or []
+    key_set = {(k["num"], k["lottery"], k["date"]) for k in keys}
+    data = [t for t in _load_my_numbers()
+            if (t["num"], t["lottery"], t["date"]) not in key_set]
+    _save_my_numbers(data)
+    return jsonify(data)
+
+
+@app.route("/api/my-numbers/bulk-update-tries", methods=["POST"])
+def api_my_numbers_bulk_update_tries():
+    body  = request.get_json(silent=True) or {}
+    keys  = {(k["num"], k["lottery"], k["date"]) for k in body.get("keys", [])}
+    tries = max(1, int(body.get("tries", 10)))
+    data  = _load_my_numbers()
+    for t in data:
+        if (t["num"], t["lottery"], t["date"]) in keys:
+            t["tries"] = tries
+    _save_my_numbers(data)
+    return jsonify(data)
+
+
 @app.route("/api/my-numbers/update", methods=["POST"])
 def api_my_numbers_update():
     body        = request.get_json(silent=True) or {}

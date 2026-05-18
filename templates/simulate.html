@@ -335,12 +335,12 @@
   async function bulkDelete() {
     const n = selectedKeys.size;
     if (!n || !confirm(`Delete ${n} entr${n > 1 ? 'ies' : 'y'}?`)) return;
-    for (const key of selectedKeys) {
-      const [num, lottery, date] = key.split('|');
-      await apiRemove(num, lottery, date);
-    }
+    const keys = [...selectedKeys].map(k => { const [num,lottery,date] = k.split('|'); return {num,lottery,date}; });
+    const r = await fetch('/api/my-numbers/bulk-remove', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(keys)
+    });
+    cachedList = await r.json();
     selectedKeys.clear();
-    cachedList = await apiGet();
     lastResults = {};
     renderTable(cachedList, {});
     if (cachedList.length) checkAll();
@@ -350,12 +350,12 @@
   async function bulkEditTries() {
     const tries = parseInt(document.getElementById('bulk-tries').value, 10);
     if (!tries || tries < 1) { showMsg('Enter a valid number of tries.', 'danger'); return; }
-    for (const key of selectedKeys) {
-      const [num, lottery, date] = key.split('|');
-      await apiUpdate(num, lottery, date, lottery, tries);
-    }
+    const keys = [...selectedKeys].map(k => { const [num,lottery,date] = k.split('|'); return {num,lottery,date}; });
+    const r = await fetch('/api/my-numbers/bulk-update-tries', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({keys, tries})
+    });
+    cachedList = await r.json();
     selectedKeys.clear();
-    cachedList = await apiGet();
     lastResults = {};
     renderTable(cachedList, {});
     if (cachedList.length) checkAll();
