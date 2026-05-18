@@ -1,108 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Draw History — 4D Lottery{% endblock %}
 
-{% block header %}
-  <h1>&#128197; Draw History</h1>
-  <p>{{ total }} draw dates &mdash; click any number to check it on the Results page</p>
-{% endblock %}
-
-{% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-10">
-
-    <!-- Number filter -->
-    <div style="background:#172130;border:1px solid #243447;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem">
-      <label style="font-size:.78rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px;font-weight:600;display:block;margin-bottom:.5rem">
-        Filter by number
-      </label>
-      <div class="d-flex gap-2 align-items-center">
-        <input id="drawFilter"
-               type="text" inputmode="numeric" pattern="\d{4}" maxlength="4"
-               placeholder="0000" autocomplete="off"
-               style="background:#0f1923;border:2px solid #2a3f55;color:#fff;font-size:1.6rem;
-                      font-weight:700;letter-spacing:.6rem;text-align:center;border-radius:8px;
-                      padding:.4rem .8rem;width:140px;transition:border-color .2s" />
-        <button onclick="clearFilter()" title="Clear"
-                style="background:#1f2e40;color:#8899aa;border:2px solid #2a3f55;border-radius:8px;
-                       padding:.5rem .9rem;font-size:1rem;cursor:pointer;transition:all .15s"
-                onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
-                onmouseout="this.style.borderColor='#2a3f55';this.style.color='#8899aa'">&#10005;</button>
-      </div>
-      <div id="filter-count" style="font-size:.78rem;margin-top:.5rem;min-height:1.2em"></div>
-
-      <!-- Specials / Consolations toggles -->
-      <div style="display:flex;gap:.5rem;margin-top:.85rem;flex-wrap:wrap;align-items:center">
-        <span style="font-size:.72rem;color:#55667a;text-transform:uppercase;letter-spacing:.5px;margin-right:.2rem">Show:</span>
-        <a href="#" id="toggleSpecials" class="tier-toggle" role="button">
-          <span class="tier-toggle-dot tier-toggle-dot-special"></span>Specials
-        </a>
-        <a href="#" id="toggleConsolations" class="tier-toggle" role="button">
-          <span class="tier-toggle-dot tier-toggle-dot-consolation"></span>Consolations
-        </a>
-      </div>
-    </div>
-
-    <!-- Draw groups -->
-    <div id="draws-container">
-    {% for row in rows %}
-    <div class="draw-group" data-date="{{ row.date }}">
-      <div class="draw-date-heading">{{ row.date_fmt }}</div>
-      <div class="lot-cards">
-        {% for lot in row.lotteries %}
-        <div class="lot-unit lot-card">
-          <div class="lot-card-header">
-            <span class="lot-name">{{ lot.label }}</span>
-            <span class="lot-draw">#{{ lot.draw_number }}</span>
-          </div>
-
-          <div class="podium">
-            <div class="podium-cell tier-1st">
-              <div class="podium-tier">&#127941; 1st</div>
-              {% if lot.p1 %}
-                <a href="/?num={{ lot.p1 }}" class="podium-num prize-link">{{ lot.p1 }}</a>
-              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
-            </div>
-            <div class="podium-cell tier-2nd">
-              <div class="podium-tier">&#127942; 2nd</div>
-              {% if lot.p2 %}
-                <a href="/?num={{ lot.p2 }}" class="podium-num prize-link">{{ lot.p2 }}</a>
-              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
-            </div>
-            <div class="podium-cell tier-3rd">
-              <div class="podium-tier">&#127943; 3rd</div>
-              {% if lot.p3 %}
-                <a href="/?num={{ lot.p3 }}" class="podium-num prize-link">{{ lot.p3 }}</a>
-              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
-            </div>
-          </div>
-
-          {% if lot.specials %}
-          <div class="lot-specials tier-block tier-block-special" style="display:none">
-            <div class="tier-block-label tier-label-special">Specials</div>
-            <div class="tier-chips">
-              {% for num in lot.specials %}<a href="/?num={{ num }}" class="tier-chip prize-link">{{ num }}</a>{% endfor %}
-            </div>
-          </div>
-          {% endif %}
-
-          {% if lot.consolations %}
-          <div class="lot-consolations tier-block tier-block-consolation" style="display:none">
-            <div class="tier-block-label tier-label-consolation">Consolations</div>
-            <div class="tier-chips">
-              {% for num in lot.consolations %}<a href="/?num={{ num }}" class="tier-chip prize-link">{{ num }}</a>{% endfor %}
-            </div>
-          </div>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endfor %}
-    </div>
-
-  </div>
-</div>
-
+{% block head %}
 <style>
   #drawFilter:focus { outline: none; border-color: #f5c518; }
   #drawFilter::placeholder { color: #2a3f55; letter-spacing: .3rem; }
@@ -232,6 +131,109 @@
     .tier-block  { padding: .45rem .55rem; }
   }
 </style>
+{% endblock %}
+
+{% block header %}
+  <h1>&#128197; Draw History</h1>
+  <p>{{ total }} draw dates &mdash; click any number to check it on the Results page</p>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+
+    <!-- Number filter -->
+    <div style="background:#172130;border:1px solid #243447;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem">
+      <label style="font-size:.78rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px;font-weight:600;display:block;margin-bottom:.5rem">
+        Filter by number
+      </label>
+      <div class="d-flex gap-2 align-items-center">
+        <input id="drawFilter"
+               type="text" inputmode="numeric" pattern="\d{4}" maxlength="4"
+               placeholder="0000" autocomplete="off"
+               style="background:#0f1923;border:2px solid #2a3f55;color:#fff;font-size:1.6rem;
+                      font-weight:700;letter-spacing:.6rem;text-align:center;border-radius:8px;
+                      padding:.4rem .8rem;width:140px;transition:border-color .2s" />
+        <button onclick="clearFilter()" title="Clear"
+                style="background:#1f2e40;color:#8899aa;border:2px solid #2a3f55;border-radius:8px;
+                       padding:.5rem .9rem;font-size:1rem;cursor:pointer;transition:all .15s"
+                onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
+                onmouseout="this.style.borderColor='#2a3f55';this.style.color='#8899aa'">&#10005;</button>
+      </div>
+      <div id="filter-count" style="font-size:.78rem;margin-top:.5rem;min-height:1.2em"></div>
+
+      <!-- Specials / Consolations toggles -->
+      <div style="display:flex;gap:.5rem;margin-top:.85rem;flex-wrap:wrap;align-items:center">
+        <span style="font-size:.72rem;color:#55667a;text-transform:uppercase;letter-spacing:.5px;margin-right:.2rem">Show:</span>
+        <a href="#" id="toggleSpecials" class="tier-toggle" role="button">
+          <span class="tier-toggle-dot tier-toggle-dot-special"></span>Specials
+        </a>
+        <a href="#" id="toggleConsolations" class="tier-toggle" role="button">
+          <span class="tier-toggle-dot tier-toggle-dot-consolation"></span>Consolations
+        </a>
+      </div>
+    </div>
+
+    <!-- Draw groups -->
+    <div id="draws-container">
+    {% for row in rows %}
+    <div class="draw-group" data-date="{{ row.date }}">
+      <div class="draw-date-heading">{{ row.date_fmt }}</div>
+      <div class="lot-cards">
+        {% for lot in row.lotteries %}
+        <div class="lot-unit lot-card">
+          <div class="lot-card-header">
+            <span class="lot-name">{{ lot.label }}</span>
+            <span class="lot-draw">#{{ lot.draw_number }}</span>
+          </div>
+
+          <div class="podium">
+            <div class="podium-cell tier-1st">
+              <div class="podium-tier">&#127941; 1st</div>
+              {% if lot.p1 %}
+                <a href="/?num={{ lot.p1 }}" class="podium-num prize-link">{{ lot.p1 }}</a>
+              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
+            </div>
+            <div class="podium-cell tier-2nd">
+              <div class="podium-tier">&#127942; 2nd</div>
+              {% if lot.p2 %}
+                <a href="/?num={{ lot.p2 }}" class="podium-num prize-link">{{ lot.p2 }}</a>
+              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
+            </div>
+            <div class="podium-cell tier-3rd">
+              <div class="podium-tier">&#127943; 3rd</div>
+              {% if lot.p3 %}
+                <a href="/?num={{ lot.p3 }}" class="podium-num prize-link">{{ lot.p3 }}</a>
+              {% else %}<span class="podium-num podium-empty">&mdash;</span>{% endif %}
+            </div>
+          </div>
+
+          {% if lot.specials %}
+          <div class="lot-specials tier-block tier-block-special" style="display:none">
+            <div class="tier-block-label tier-label-special">Specials</div>
+            <div class="tier-chips">
+              {% for num in lot.specials %}<a href="/?num={{ num }}" class="tier-chip prize-link">{{ num }}</a>{% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+          {% if lot.consolations %}
+          <div class="lot-consolations tier-block tier-block-consolation" style="display:none">
+            <div class="tier-block-label tier-label-consolation">Consolations</div>
+            <div class="tier-chips">
+              {% for num in lot.consolations %}<a href="/?num={{ num }}" class="tier-chip prize-link">{{ num }}</a>{% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+    </div>
+
+  </div>
+</div>
 
 <script>
   const filterInput      = document.getElementById('drawFilter');
