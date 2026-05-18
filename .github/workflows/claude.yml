@@ -28,6 +28,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Auto-merge Claude branch to master
+        id: merge
         if: steps.claude.outcome == 'success'
         env:
           ISSUE_NUM: ${{ github.event.issue.number }}
@@ -42,6 +43,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout master
+          git pull origin master
           git merge "origin/$BRANCH" --no-edit
           git push origin master
 
@@ -50,7 +52,7 @@ jobs:
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-          OUTCOME: ${{ steps.claude.outcome }}
+          OUTCOME: ${{ steps.merge.outcome }}
           ISSUE_NUM: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_URL: ${{ github.event.issue.html_url }}

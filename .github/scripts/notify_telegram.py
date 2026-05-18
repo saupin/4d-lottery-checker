@@ -5,7 +5,7 @@ import urllib.request
 e = os.environ
 outcome = e.get("OUTCOME", "")
 icon = "✅" if outcome == "success" else "❌"
-status = "Implementation complete" if outcome == "success" else "Implementation failed"
+status = "Merged to master — deploying" if outcome == "success" else "Implementation failed (check Actions log)"
 
 text = (
     f"{icon} {status}\n"
