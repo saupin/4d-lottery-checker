@@ -114,6 +114,9 @@
     .draw-table tbody tr:hover .prize-num  { color: #f5c518; }
     .special-nums { font-size: .78rem; color: #336699; font-family: monospace; }
     .draw-table tbody tr:hover .special-nums { color: #88aacc; }
+    a.prize-link { color: inherit; text-decoration: none; }
+    a.prize-link:hover { color: #f5c518 !important; text-decoration: underline; }
+    .draw-table tbody tr:hover a.prize-link { color: #f5c518; }
 
     /* ── Spinner ── */
     #spinner { display: none; }
@@ -399,6 +402,7 @@
   <div class="container d-flex align-items-center gap-1 flex-wrap">
     <span style="color:#f5c518;font-weight:700;margin-right:.75rem;">&#127922; 4D</span>
     <a href="/" class="nav-link {% if active_page == 'results' %}active{% endif %}">Results</a>
+    <a href="/draws" class="nav-link {% if active_page == 'draws' %}active{% endif %}">Draws</a>
     <a href="/analysis" class="nav-link {% if active_page == 'analysis' %}active{% endif %}">Analysis</a>
     <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
     {% if session.get('approved') %}

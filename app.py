@@ -835,6 +835,33 @@ def simulate():
                            next_draw=next_draw_date())
 
 
+@app.route("/draws")
+def draws():
+    data = load_results()
+    rows = []
+    for date_str in sorted(data.keys(), reverse=True):
+        day = data[date_str]
+        lotteries = []
+        for key in LOTTERY_ORDER:
+            lot = day.get(key)
+            if not lot:
+                continue
+            prizes = lot.get("prizes", {})
+            lotteries.append({
+                "label":       lot.get("label", key.upper()),
+                "draw_number": lot.get("draw_number", ""),
+                "p1": prizes.get("1st", ""),
+                "p2": prizes.get("2nd", ""),
+                "p3": prizes.get("3rd", ""),
+            })
+        rows.append({
+            "date":     date_str,
+            "date_fmt": datetime.strptime(date_str, "%Y-%m-%d").strftime("%a, %d %b %Y"),
+            "lotteries": lotteries,
+        })
+    return render_template("draws.html", rows=rows, total=len(rows), active_page="draws")
+
+
 @app.route("/api/notifications/wins")
 @approved_required
 def api_notification_wins():

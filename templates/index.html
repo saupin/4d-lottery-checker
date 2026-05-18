@@ -78,7 +78,9 @@
 </div>
 
 <script>
+  const canTrack = {{ 'true' if session.get('approved') else 'false' }};
   const input = document.getElementById('numberInput');
+  let currentNum = '';
 
   input.addEventListener('input', () => {
     input.value = input.value.replace(/\D/g, '').slice(0, 4);
@@ -87,6 +89,7 @@
 
   function clearInput() {
     input.value = '';
+    currentNum  = '';
     document.getElementById('results').innerHTML = '';
     input.focus();
   }
@@ -191,9 +194,73 @@
       '<div class="no-match"><div class="icon">&#128269;</div><div class="mt-2">No matches for current filters.</div></div>';
   }
 
+  // ── Track bar ──
+  const TRACK_LOTS = [
+    { key: 'damacai', label: 'DAMACAI' },
+    { key: 'magnum',  label: 'MAGNUM'  },
+    { key: 'toto',    label: 'SPORTSTOTO' },
+    { key: 'all',     label: 'All'     },
+  ];
+
+  function buildTrackBar(num) {
+    const tip = 'Login required to track numbers';
+    const btns = TRACK_LOTS.map(l => {
+      if (!canTrack) {
+        return `<button class="btn-add-sim" style="width:auto;padding:.2rem .75rem"
+                        disabled title="${tip}">+ ${l.label}</button>`;
+      }
+      return `<button class="btn-add-sim" id="track-bar-${l.key}"
+                      style="width:auto;padding:.2rem .75rem"
+                      onclick="trackNum('${num}','${l.key}',this)">+ ${l.label}</button>`;
+    }).join('');
+    return `
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
+                  background:#172130;border:1px solid #243447;border-radius:8px;
+                  padding:.6rem .9rem;margin-bottom:.75rem">
+        <span style="font-size:.75rem;color:#8899aa;font-weight:600;white-space:nowrap">Track <strong style="color:#f5c518">${num}</strong>:</span>
+        ${btns}
+      </div>`;
+  }
+
+  async function trackNum(num, lottery, btn) {
+    btn.disabled = true;
+    const today  = new Date().toISOString().slice(0, 10);
+    try {
+      const r = await fetch('/api/my-numbers/add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ num, lottery, tries: 10, date: today }),
+      });
+      if (r.ok || r.status === 409) {
+        btn.textContent = '✓ ' + btn.textContent.replace('+ ', '');
+        btn.classList.add('added');
+      } else {
+        btn.textContent = '✗ Failed';
+        setTimeout(() => { btn.textContent = '+ ' + TRACK_LOTS.find(l => l.key === lottery)?.label; btn.disabled = false; }, 2000);
+        return;
+      }
+    } catch(e) {
+      console.error('Track error:', e);
+      btn.disabled = false;
+    }
+  }
+
+  async function markTrackBarTracked(num) {
+    if (!canTrack) return;
+    try {
+      const r    = await fetch('/api/my-numbers');
+      const list = await r.json();
+      list.forEach(t => {
+        if (t.num !== num) return;
+        const btn = document.getElementById(`track-bar-${t.lottery}`);
+        if (btn) { btn.textContent = '✓ ' + btn.textContent.replace('+ ', ''); btn.classList.add('already'); }
+      });
+    } catch {}
+  }
+
   async function doSearch() {
     const num = input.value.trim();
     if (num.length !== 4) { showError('Please enter exactly 4 digits.'); return; }
+    currentNum = num;
 
     document.getElementById('spinner').style.display = 'block';
     document.getElementById('results').innerHTML = '';
@@ -208,7 +275,9 @@
           <div class="no-match">
             <div class="icon">&#128531;</div>
             <div class="mt-2"><strong>${num}</strong> was not found in any of the ${data.total_draws} draw${data.total_draws !== 1 ? 's' : ''} stored.</div>
-          </div>`;
+          </div>
+          ${buildTrackBar(num)}`;
+        markTrackBarTracked(num);
         return;
       }
 
@@ -220,8 +289,9 @@
           across ${data.total_draws} draw${data.total_draws !== 1 ? 's' : ''}!
         </div>`;
 
-      document.getElementById('results').innerHTML = alertHtml + buildFilters(allMatches);
+      document.getElementById('results').innerHTML = alertHtml + buildTrackBar(num) + buildFilters(allMatches);
       applyFilters();
+      markTrackBarTracked(num);
 
     } catch (err) {
       showError('Network error. Is the server running?');
@@ -235,5 +305,15 @@
     document.getElementById('results').innerHTML =
       `<div class="alert alert-danger alert-result">${msg}</div>`;
   }
+
+  // Auto-search from URL ?num=XXXX (e.g. linked from Draws page)
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const num = params.get('num');
+    if (num && /^\d{4}$/.test(num)) {
+      input.value = num;
+      doSearch();
+    }
+  });
 </script>
 {% endblock %}

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Draw History — 4D Lottery{% endblock %}
+
+{% block header %}
+  <h1>&#128197; Draw History</h1>
+  <p>{{ total }} draw dates &mdash; click any number to check it on the Results page</p>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+
+    <!-- Number filter -->
+    <div style="background:#172130;border:1px solid #243447;border-radius:12px;padding:1.25rem;margin-bottom:1.5rem">
+      <label style="font-size:.78rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px;font-weight:600;display:block;margin-bottom:.5rem">
+        Filter by number
+      </label>
+      <div class="d-flex gap-2 align-items-center">
+        <input id="drawFilter"
+               type="text" inputmode="numeric" pattern="\d{4}" maxlength="4"
+               placeholder="0000" autocomplete="off"
+               style="background:#0f1923;border:2px solid #2a3f55;color:#fff;font-size:1.6rem;
+                      font-weight:700;letter-spacing:.6rem;text-align:center;border-radius:8px;
+                      padding:.4rem .8rem;width:140px;transition:border-color .2s" />
+        <button onclick="clearFilter()" title="Clear"
+                style="background:#1f2e40;color:#8899aa;border:2px solid #2a3f55;border-radius:8px;
+                       padding:.5rem .9rem;font-size:1rem;cursor:pointer;transition:all .15s"
+                onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
+                onmouseout="this.style.borderColor='#2a3f55';this.style.color='#8899aa'">&#10005;</button>
+      </div>
+      <div id="filter-count" style="font-size:.78rem;margin-top:.5rem;min-height:1.2em"></div>
+    </div>
+
+    <!-- Draw groups -->
+    <div id="draws-container">
+    {% for row in rows %}
+    <div class="draw-group mb-4" data-date="{{ row.date }}">
+      <div class="mb-1" style="color:#f5c518;font-weight:600;font-size:.9rem">{{ row.date_fmt }}</div>
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table class="table draw-table mb-0">
+        <thead>
+          <tr>
+            <th>Lottery</th>
+            <th>&#127941; 1st</th>
+            <th>&#127942; 2nd</th>
+            <th>&#127943; 3rd</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lot in row.lotteries %}
+          <tr class="lot-row">
+            <td>
+              <span class="lottery-name">{{ lot.label }}</span><br>
+              <span style="font-size:.75rem;color:#55aacc">#{{ lot.draw_number }}</span>
+            </td>
+            <td>
+              {% if lot.p1 %}
+              <a href="/?num={{ lot.p1 }}" class="prize-num prize-link">{{ lot.p1 }}</a>
+              {% else %}<span style="color:#55667a">—</span>{% endif %}
+            </td>
+            <td>
+              {% if lot.p2 %}
+              <a href="/?num={{ lot.p2 }}" class="prize-num prize-link">{{ lot.p2 }}</a>
+              {% else %}<span style="color:#55667a">—</span>{% endif %}
+            </td>
+            <td>
+              {% if lot.p3 %}
+              <a href="/?num={{ lot.p3 }}" class="prize-num prize-link">{{ lot.p3 }}</a>
+              {% else %}<span style="color:#55667a">—</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+    {% endfor %}
+    </div>
+
+  </div>
+</div>
+
+<style>
+  #drawFilter:focus { outline: none; border-color: #f5c518; }
+  #drawFilter::placeholder { color: #2a3f55; letter-spacing: .3rem; }
+  .prize-link.hl { color: #f5c518 !important; }
+</style>
+
+<script>
+  const filterInput = document.getElementById('drawFilter');
+
+  filterInput.addEventListener('input', () => {
+    filterInput.value = filterInput.value.replace(/\D/g, '').slice(0, 4);
+    applyDrawFilter();
+  });
+
+  function clearFilter() {
+    filterInput.value = '';
+    applyDrawFilter();
+    filterInput.focus();
+  }
+
+  function applyDrawFilter() {
+    const q = filterInput.value.trim();
+    const groups = document.querySelectorAll('.draw-group');
+    let matchCount = 0;
+
+    groups.forEach(group => {
+      const rows    = group.querySelectorAll('.lot-row');
+      let groupHit  = false;
+
+      rows.forEach(row => {
+        const links   = row.querySelectorAll('a.prize-link');
+        const nums    = [...links].map(l => l.textContent.trim());
+        const rowHit  = !q || nums.includes(q);
+
+        row.style.display = rowHit ? '' : 'none';
+        links.forEach(l => l.classList.toggle('hl', q !== '' && l.textContent.trim() === q));
+
+        if (rowHit && q) { groupHit = true; matchCount++; }
+        if (!q) groupHit = true;
+      });
+
+      group.style.display = groupHit ? '' : 'none';
+    });
+
+    const countEl = document.getElementById('filter-count');
+    if (!q) {
+      countEl.textContent = '';
+      countEl.style.color  = '';
+    } else if (matchCount === 0) {
+      countEl.textContent = `"${q}" has not won a top-3 prize in any stored draw.`;
+      countEl.style.color  = '#f97316';
+    } else {
+      countEl.textContent = `${q} appeared as a top-3 prize in ${matchCount} draw${matchCount !== 1 ? 's' : ''}.`;
+      countEl.style.color  = '#22c55e';
+    }
+  }
+
+  // Auto-fill filter from URL ?num=XXXX
+  (() => {
+    const params = new URLSearchParams(window.location.search);
+    const num = params.get('num');
+    if (num && /^\d{4}$/.test(num)) {
+      filterInput.value = num;
+      applyDrawFilter();
+    }
+  })();
+</script>
+{% endblock %}
