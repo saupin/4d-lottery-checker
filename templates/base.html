@@ -466,6 +466,35 @@
 </script>
 {% endif %}
 
+<!-- Admin reply notification bar -->
+{% if session.get('show_feedback_reply') %}
+<div id="reply-bar" style="display:none;background:#0a1a2a;border-bottom:2px solid #55aacc;padding:.6rem 0">
+  <div class="container d-flex align-items-start justify-content-between gap-3">
+    <div id="reply-bar-body" style="font-size:.85rem;color:#e8eaf0;line-height:1.7"></div>
+    <button onclick="document.getElementById('reply-bar').style.display='none'"
+            style="background:none;border:none;color:#55667a;cursor:pointer;font-size:1.3rem;line-height:1;flex-shrink:0"
+            title="Dismiss">&times;</button>
+  </div>
+</div>
+<script>
+  fetch('/api/feedback/replies')
+    .then(r => r.json())
+    .then(replies => {
+      if (!replies || !replies.length) return;
+      const lines = replies.map(r => {
+        const short = r.feedback.length > 55 ? r.feedback.slice(0, 55) + '…' : r.feedback;
+        return `Re: <em style="color:#8899aa">"${short}"</em><br>
+                <span style="color:#e8eaf0;padding-left:.5rem">&#128394; ${r.admin_reply}</span>`;
+      });
+      document.getElementById('reply-bar-body').innerHTML =
+        `<span style="color:#55aacc;font-weight:700;margin-right:.5rem">&#128236; Admin replied to your feedback:</span><br>` +
+        lines.join('<br>');
+      document.getElementById('reply-bar').style.display = 'block';
+    })
+    .catch(() => {});
+</script>
+{% endif %}
+
 <!-- Site header -->
 <header class="site-header">
   <div class="container">

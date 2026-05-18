@@ -3,20 +3,25 @@
 
 {% block header %}
   <h1>&#128172; Feedback Review</h1>
-  <p>{{ items|length }} submission{{ 's' if items|length != 1 }} — reviewed by Claude and sent to Telegram on receipt.</p>
+  <p>{{ items|length }} submission{{ 's' if items|length != 1 }} — Claude analyses and Telegram notification sent on receipt.</p>
 {% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-lg-8">
+  <div class="col-lg-9">
 
     <div class="d-flex align-items-center justify-content-between mb-3">
-      <a href="/admin" style="font-size:.82rem;color:#55667a;text-decoration:none">
-        &#8592; Back to Admin
-      </a>
-      <span style="font-size:.75rem;color:#55667a">
-        Telegram notified automatically on each submission
-      </span>
+      <a href="/admin" style="font-size:.82rem;color:#55667a;text-decoration:none">&#8592; Back to Admin</a>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        {% for val, label in [('all','All'), ('pending','Pending'), ('in_progress','In Progress'), ('reviewed','Reviewed'), ('done','Done')] %}
+        <span class="filter-chip {% if val == 'all' %}active{% endif %}" data-filter="{{ val }}"
+              onclick="filterStatus('{{ val }}', this)"
+              style="font-size:.72rem;padding:.2rem .65rem;border-radius:20px;cursor:pointer;
+                     border:1px solid #243447;color:#8899aa;background:#172130;transition:all .15s">
+          {{ label }}
+        </span>
+        {% endfor %}
+      </div>
     </div>
 
     {% if not items %}
@@ -26,45 +31,182 @@
     </div>
     {% else %}
 
-    <div class="section-card">
-      <table class="table draw-table mb-0">
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Submitted</th>
-            <th>Feedback &amp; Claude's Analysis</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in items %}
-          <tr>
-            <td style="font-family:monospace;font-weight:700;font-size:.88rem;
-                       white-space:nowrap;vertical-align:top">
-              {{ item.user_id }}
-            </td>
-            <td style="font-size:.75rem;color:#8899aa;white-space:nowrap;vertical-align:top">
-              {{ item.submitted_at[:16].replace('T',' ') if item.submitted_at else '—' }}
-            </td>
-            <td style="vertical-align:top">
-              <div style="font-size:.85rem;color:#e8eaf0;line-height:1.5;margin-bottom:.5rem">
-                {{ item.feedback }}
-              </div>
-              {% if item.claude_analysis %}
-              <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
-                          border-radius:0 6px 6px 0;font-size:.78rem;color:#8899aa;line-height:1.5">
-                <span style="color:#55aacc;font-weight:700;font-size:.7rem;
-                             text-transform:uppercase;letter-spacing:.5px">&#129302; Claude</span><br>
-                {{ item.claude_analysis }}
-              </div>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div id="feedback-list">
+    {% for item in items %}
+    {% set item_id = item.get('id', '') %}
+    {% set status  = item.get('status') or 'pending' %}
+    <div class="feedback-row section-card mb-3" data-status="{{ status }}" data-id="{{ item_id }}">
+
+      <!-- Header: user + date + status badge -->
+      <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+        <div style="display:flex;align-items:center;gap:.6rem">
+          <span style="font-family:monospace;font-weight:700;color:#55aacc">{{ item.user_id }}</span>
+          <span style="font-size:.72rem;color:#55667a">
+            {{ item.submitted_at[:16].replace('T',' ') if item.submitted_at else '—' }}
+          </span>
+        </div>
+        <span class="status-badge status-{{ status }}" id="badge-{{ item_id }}">
+          {{ {'pending':'⏳ Pending','in_progress':'🔄 In Progress','reviewed':'🔵 Reviewed','done':'✅ Done'}.get(status, status) }}
+        </span>
+      </div>
+
+      <!-- Feedback text -->
+      <div style="font-size:.88rem;color:#e8eaf0;line-height:1.6;margin-bottom:.6rem">
+        {{ item.feedback }}
+      </div>
+
+      <!-- Claude analysis -->
+      {% if item.get('claude_analysis') %}
+      <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
+                  border-radius:0 6px 6px 0;font-size:.78rem;color:#8899aa;
+                  line-height:1.5;margin-bottom:.75rem">
+        <span style="color:#55aacc;font-weight:700;font-size:.7rem;
+                     text-transform:uppercase;letter-spacing:.5px">&#129302; Claude</span><br>
+        {{ item.claude_analysis }}
+      </div>
+      {% endif %}
+
+      <!-- Existing reply -->
+      {% if item.get('admin_reply') %}
+      <div id="reply-display-{{ item_id }}"
+           style="background:#0d2010;border-left:3px solid #22c55e;padding:.5rem .75rem;
+                  border-radius:0 6px 6px 0;font-size:.78rem;color:#c8f7d8;
+                  line-height:1.5;margin-bottom:.75rem">
+        <span style="color:#22c55e;font-weight:700;font-size:.7rem;
+                     text-transform:uppercase;letter-spacing:.5px">&#128394; Admin reply
+          {% if item.get('reply_at') %}
+          <span style="font-weight:400;color:#55667a">
+            &mdash; {{ item.reply_at[:16].replace('T',' ') if item.reply_at else '' }}
+          </span>
+          {% endif %}
+        </span><br>
+        <span id="reply-text-{{ item_id }}">{{ item.admin_reply }}</span>
+      </div>
+      {% else %}
+      <div id="reply-display-{{ item_id }}" style="display:none;background:#0d2010;
+           border-left:3px solid #22c55e;padding:.5rem .75rem;border-radius:0 6px 6px 0;
+           font-size:.78rem;color:#c8f7d8;line-height:1.5;margin-bottom:.75rem">
+        <span style="color:#22c55e;font-weight:700;font-size:.7rem;
+                     text-transform:uppercase;letter-spacing:.5px">&#128394; Admin reply</span><br>
+        <span id="reply-text-{{ item_id }}"></span>
+      </div>
+      {% endif %}
+
+      <!-- Controls: status + reply -->
+      <div style="display:flex;gap:.75rem;align-items:flex-start;flex-wrap:wrap">
+        <!-- Status selector -->
+        <div style="display:flex;flex-direction:column;gap:.3rem;min-width:130px">
+          <label style="font-size:.68rem;color:#55667a;text-transform:uppercase;letter-spacing:.5px">Status</label>
+          <select id="status-{{ item_id }}"
+                  onchange="saveStatus({{ item_id }}, this)"
+                  style="background:#0f1923;border:1px solid #2a3f55;color:#e8eaf0;
+                         border-radius:6px;padding:.3rem .5rem;font-size:.78rem;cursor:pointer">
+            {% for val, label in [('pending','⏳ Pending'),('in_progress','🔄 In Progress'),('reviewed','🔵 Reviewed'),('done','✅ Done')] %}
+            <option value="{{ val }}" {{ 'selected' if status == val }}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          <span id="status-msg-{{ item_id }}" style="font-size:.68rem;color:#22c55e;display:none">Saved ✓</span>
+        </div>
+
+        <!-- Reply textarea -->
+        <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:.3rem">
+          <label style="font-size:.68rem;color:#55667a;text-transform:uppercase;letter-spacing:.5px">
+            Reply to user (shown on their next login)
+          </label>
+          <textarea id="reply-{{ item_id }}" rows="2"
+                    placeholder="Type a reply…"
+                    style="background:#0f1923;border:1px solid #2a3f55;color:#e8eaf0;
+                           border-radius:6px;padding:.4rem .6rem;font-size:.82rem;
+                           resize:vertical;font-family:inherit;outline:none;
+                           transition:border-color .2s"
+                    onfocus="this.style.borderColor='#f5c518'"
+                    onblur="this.style.borderColor='#2a3f55'">{{ item.get('admin_reply') or '' }}</textarea>
+          <button onclick="sendReply({{ item_id }}, this)"
+                  style="align-self:flex-end;background:rgba(85,170,204,.12);
+                         border:1px solid #55aacc;color:#55aacc;border-radius:6px;
+                         padding:.3rem .85rem;font-size:.78rem;font-weight:700;cursor:pointer;
+                         transition:all .15s"
+                  onmouseover="this.style.background='rgba(85,170,204,.25)'"
+                  onmouseout="this.style.background='rgba(85,170,204,.12)'">
+            &#128394; Send Reply
+          </button>
+        </div>
+      </div>
+
+    </div>
+    {% endfor %}
     </div>
 
     {% endif %}
   </div>
 </div>
+
+<style>
+  .status-badge {
+    font-size: .7rem; font-weight: 700; border-radius: 20px;
+    padding: .2rem .65rem; border: 1px solid;
+  }
+  .status-pending     { color: #8899aa; border-color: #2a3f55; background: #0f1923; }
+  .status-in_progress { color: #f5c518; border-color: #f5c518; background: rgba(245,197,24,.1); }
+  .status-reviewed    { color: #55aacc; border-color: #55aacc; background: rgba(85,170,204,.1); }
+  .status-done        { color: #22c55e; border-color: #22c55e; background: rgba(34,197,94,.1); }
+  .filter-chip.active { background: #f5c518 !important; color: #0f1923 !important; border-color: #f5c518 !important; font-weight: 700; }
+</style>
+
+<script>
+  const CSRF = '{{ csrf_token }}';
+
+  function filterStatus(val, el) {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    document.querySelectorAll('.feedback-row').forEach(row => {
+      row.style.display = (val === 'all' || row.dataset.status === val) ? '' : 'none';
+    });
+  }
+
+  async function saveStatus(id, sel) {
+    const status = sel.value;
+    const r = await fetch(`/admin/feedback/update/${id}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ csrf_token: CSRF, status })
+    });
+    const row   = sel.closest('.feedback-row');
+    const badge = document.getElementById('badge-' + id);
+    const msg   = document.getElementById('status-msg-' + id);
+    if (r.ok) {
+      row.dataset.status = status;
+      const labels = { pending:'⏳ Pending', in_progress:'🔄 In Progress',
+                       reviewed:'🔵 Reviewed', done:'✅ Done' };
+      badge.textContent  = labels[status] || status;
+      badge.className    = `status-badge status-${status}`;
+      msg.style.display  = 'inline';
+      setTimeout(() => msg.style.display = 'none', 2000);
+    }
+  }
+
+  async function sendReply(id, btn) {
+    const textarea = document.getElementById('reply-' + id);
+    const text     = textarea.value.trim();
+    if (!text) return;
+    btn.disabled   = true;
+    btn.textContent = 'Sending…';
+    const r = await fetch(`/admin/feedback/update/${id}`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ csrf_token: CSRF, admin_reply: text })
+    });
+    if (r.ok) {
+      const display = document.getElementById('reply-display-' + id);
+      const replyText = document.getElementById('reply-text-' + id);
+      replyText.textContent  = text;
+      display.style.display  = '';
+      btn.textContent = '✓ Sent';
+      btn.style.color = '#22c55e';
+      btn.style.borderColor = '#22c55e';
+    } else {
+      btn.textContent = '✗ Failed';
+      btn.disabled    = false;
+      setTimeout(() => { btn.textContent = '✉ Send Reply'; btn.style.color = ''; btn.style.borderColor = ''; }, 2000);
+    }
+  }
+</script>
 {% endblock %}

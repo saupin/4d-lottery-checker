@@ -938,6 +938,8 @@ def login_page():
             session["is_admin"] = False
             if session["approved"]:
                 session["show_notifications"] = True
+            if _has_unread_replies(username):
+                session["show_feedback_reply"] = True
             return redirect(request.args.get("next") or "/")
     return render_template("login.html", error=error, next=request.args.get("next", ""))
 
@@ -1008,6 +1010,60 @@ def admin_feedback():
         return redirect(url_for("login_page", next="/admin/feedback"))
     items = _list_feedback()
     return render_template("admin_feedback.html", items=items, active_page=None)
+
+
+@app.route("/admin/feedback/update/<int:item_id>", methods=["POST"])
+def admin_feedback_update(item_id):
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 401
+    body = request.get_json(silent=True) or {}
+    if body.get("csrf_token") != session.get("csrf_token"):
+        return jsonify({"error": "CSRF"}), 403
+    status      = body.get("status") or None
+    admin_reply = body.get("admin_reply", "").strip() or None
+    ok = _update_feedback(item_id, status=status, admin_reply=admin_reply)
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/feedback/replies")
+def api_feedback_replies():
+    if "user_id" not in session:
+        return jsonify([]), 401
+    session.pop("show_feedback_reply", None)
+    user_id = session["user_id"]
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(
+                f"{_SB_URL}/rest/v1/feedback_store"
+                f"?user_id=eq.{user_id}&admin_reply=not.is.null"
+                f"&reply_read=eq.false&select=id,feedback,admin_reply,reply_at",
+                headers=_sb_headers(), timeout=5)
+            replies = r.json() if r.ok else []
+            if replies:
+                _req.patch(
+                    f"{_SB_URL}/rest/v1/feedback_store"
+                    f"?user_id=eq.{user_id}&reply_read=eq.false",
+                    headers={**_sb_headers(), "Prefer": "return=minimal"},
+                    json={"reply_read": True}, timeout=5)
+            return jsonify(replies)
+        except Exception:
+            return jsonify([])
+    if not os.path.exists(_FEEDBACK_FILE):
+        return jsonify([])
+    try:
+        all_items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
+        replies = [i for i in all_items
+                   if i.get("user_id") == user_id
+                   and i.get("admin_reply")
+                   and not i.get("reply_read", True)]
+        for i in all_items:
+            if i.get("user_id") == user_id and not i.get("reply_read", True):
+                i["reply_read"] = True
+        with open(_FEEDBACK_FILE, "w", encoding="utf-8") as f:
+            json.dump(all_items, f, indent=2)
+        return jsonify(replies)
+    except Exception:
+        return jsonify([])
 
 
 @app.route("/admin/test-analysis")
@@ -1264,13 +1320,72 @@ def _save_feedback(user_id: str, text: str, analysis: str = "") -> None:
             items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
         except Exception:
             pass
-    items.insert(0, {"user_id": user_id, "feedback": text,
-                     "claude_analysis": analysis, "submitted_at": now})
+    next_id = max((i.get("id", 0) for i in items), default=0) + 1
+    items.insert(0, {"id": next_id, "user_id": user_id, "feedback": text,
+                     "claude_analysis": analysis, "submitted_at": now,
+                     "status": "pending", "admin_reply": None,
+                     "reply_at": None, "reply_read": True})
     try:
         with open(_FEEDBACK_FILE, "w", encoding="utf-8") as f:
             json.dump(items, f, indent=2)
     except OSError:
         pass
+
+
+def _update_feedback(item_id: int, status: str | None = None,
+                     admin_reply: str | None = None) -> bool:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    payload: dict = {}
+    if status is not None:
+        payload["status"] = status
+    if admin_reply is not None:
+        payload["admin_reply"] = admin_reply
+        payload["reply_at"]   = now
+        payload["reply_read"] = False
+    if not payload:
+        return True
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.patch(
+                f"{_SB_URL}/rest/v1/feedback_store?id=eq.{item_id}",
+                headers={**_sb_headers(), "Prefer": "return=minimal"},
+                json=payload, timeout=5)
+            return r.ok
+        except Exception:
+            return False
+    if not os.path.exists(_FEEDBACK_FILE):
+        return False
+    try:
+        items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
+        for item in items:
+            if item.get("id") == item_id:
+                item.update(payload)
+                break
+        with open(_FEEDBACK_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def _has_unread_replies(user_id: str) -> bool:
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(
+                f"{_SB_URL}/rest/v1/feedback_store"
+                f"?user_id=eq.{user_id}&admin_reply=not.is.null&reply_read=eq.false&select=id",
+                headers=_sb_headers(), timeout=5)
+            return bool(r.json()) if r.ok else False
+        except Exception:
+            return False
+    if not os.path.exists(_FEEDBACK_FILE):
+        return False
+    try:
+        items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
+        return any(i.get("user_id") == user_id and i.get("admin_reply")
+                   and not i.get("reply_read", True) for i in items)
+    except Exception:
+        return False
 
 
 def _list_feedback() -> list:
