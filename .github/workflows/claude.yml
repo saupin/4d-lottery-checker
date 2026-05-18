@@ -28,13 +28,21 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
       - name: Auto-merge Claude branch to master
-        if: steps.claude.outcome == 'success' && steps.claude.outputs.branch_name != ''
+        if: steps.claude.outcome == 'success'
+        env:
+          ISSUE_NUM: ${{ github.event.issue.number }}
         run: |
+          git fetch origin
+          BRANCH=$(git branch -r | grep "origin/claude/issue-${ISSUE_NUM}-" | sed 's|.*origin/||' | sort | tail -1)
+          if [ -z "$BRANCH" ]; then
+            echo "No claude branch found for issue #${ISSUE_NUM}, skipping merge."
+            exit 0
+          fi
+          echo "Merging $BRANCH into master"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin
           git checkout master
-          git merge origin/${{ steps.claude.outputs.branch_name }} --no-edit
+          git merge "origin/$BRANCH" --no-edit
           git push origin master
 
       - name: Notify Telegram
