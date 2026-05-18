@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Payout Rates — 4D Lottery{% endblock %}
+
+{% block header %}
+  <h1>&#128176; Payout Rates by Lottery Type</h1>
+  <p>Standard prize payout per RM&nbsp;1 bet, as published by each operator</p>
+{% endblock %}
+
+{% block content %}
+
+<style>
+  .payout-card {
+    background: #172130;
+    border: 1px solid #243447;
+    border-radius: 14px;
+    padding: 1.25rem 1.4rem 1.4rem;
+    margin-bottom: 1.25rem;
+  }
+  .payout-card h3 {
+    color: #f5c518;
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: .5px;
+    margin: 0 0 .15rem;
+  }
+  .payout-card .payout-sub {
+    color: #8899aa;
+    font-size: .78rem;
+    margin-bottom: .9rem;
+  }
+  .payout-priority {
+    display: inline-block;
+    background: #f5c518;
+    color: #0f1923;
+    font-weight: 700;
+    font-size: .72rem;
+    padding: .1rem .55rem;
+    border-radius: 999px;
+    letter-spacing: .4px;
+    margin-right: .55rem;
+    vertical-align: middle;
+  }
+  .payout-table {
+    width: 100%;
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #dddddd;
+    margin-top: .35rem;
+  }
+  .payout-table thead th {
+    background: #e8e8e8;
+    color: #333;
+    font-size: .78rem;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    padding: .55rem .8rem;
+    border: none;
+  }
+  .payout-table tbody td {
+    color: #000;
+    font-size: .9rem;
+    padding: .5rem .8rem;
+    border-top: 1px solid #eee;
+    background: #fff;
+  }
+  .payout-table tbody tr:hover td { background: #fff8d8; }
+  .payout-tier { font-weight: 600; }
+  .payout-amt  { font-family: monospace; font-weight: 700; color: #c8960a; text-align: right; }
+  .payout-amt.small { color: #1e7e34; }
+
+  .bet-heading {
+    color: #aabbcc;
+    font-size: .78rem;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin: .6rem 0 .25rem;
+  }
+
+  .payout-note {
+    background: #0f1923;
+    border: 1px dashed #2a3f55;
+    border-radius: 10px;
+    padding: .85rem 1rem;
+    color: #8899aa;
+    font-size: .82rem;
+    line-height: 1.55;
+  }
+  .payout-note strong { color: #aabbcc; }
+</style>
+
+<div class="row justify-content-center">
+  <div class="col-lg-10">
+
+    {% for lot in payouts %}
+    <div class="payout-card">
+      <h3><span class="payout-priority">#{{ loop.index }}</span>{{ lot.label }}</h3>
+      <div class="payout-sub">{{ lot.tagline }}</div>
+
+      <div class="row g-3">
+        <div class="col-md-7">
+          <div class="bet-heading">Big Forecast &mdash; Pays on all 5 tiers</div>
+          <table class="payout-table">
+            <thead>
+              <tr>
+                <th>Prize Tier</th>
+                <th style="text-align:right">Payout per RM&nbsp;1</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="prize-badge prize-1st">1st</span> <span class="payout-tier">{{ prize_label['1st'] }}</span></td>
+                <td class="payout-amt">RM&nbsp;{{ '{:,}'.format(lot.big['1st']) }}</td>
+              </tr>
+              <tr>
+                <td><span class="prize-badge prize-2nd">2nd</span> <span class="payout-tier">{{ prize_label['2nd'] }}</span></td>
+                <td class="payout-amt">RM&nbsp;{{ '{:,}'.format(lot.big['2nd']) }}</td>
+              </tr>
+              <tr>
+                <td><span class="prize-badge prize-3rd">3rd</span> <span class="payout-tier">{{ prize_label['3rd'] }}</span></td>
+                <td class="payout-amt">RM&nbsp;{{ '{:,}'.format(lot.big['3rd']) }}</td>
+              </tr>
+              <tr>
+                <td><span class="prize-badge prize-special">Special</span> <span class="payout-tier">{{ prize_label['special'] }} (10 nums)</span></td>
+                <td class="payout-amt">RM&nbsp;{{ '{:,}'.format(lot.big['special']) }}</td>
+              </tr>
+              <tr>
+                <td><span class="prize-badge prize-consolation">Cons</span> <span class="payout-tier">{{ prize_label['consolation'] }} (10 nums)</span></td>
+                <td class="payout-amt">RM&nbsp;{{ '{:,}'.format(lot.big['consolation']) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="col-md-5">
+          <div class="bet-heading">Small Forecast &mdash; Top 3 tiers only</div>
+          <table class="payout-table">
+            <thead>
+              <tr>
+                <th>Prize Tier</th>
+                <th style="text-align:right">Payout per RM&nbsp;1</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="prize-badge prize-1st">1st</span> <span class="payout-tier">{{ prize_label['1st'] }}</span></td>
+                <td class="payout-amt small">RM&nbsp;{{ '{:,}'.format(lot.small['1st']) }}</td>
+              </tr>
+              <tr>
+                <td><span class="prize-badge prize-2nd">2nd</span> <span class="payout-tier">{{ prize_label['2nd'] }}</span></td>
+                <td class="payout-amt small">RM&nbsp;{{ '{:,}'.format(lot.small['2nd']) }}</td>
+              </tr>
+              <tr>
+                <td><span class="prize-badge prize-3rd">3rd</span> <span class="payout-tier">{{ prize_label['3rd'] }}</span></td>
+                <td class="payout-amt small">RM&nbsp;{{ '{:,}'.format(lot.small['3rd']) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="payout-note">
+      <strong>How to read:</strong> Each amount is the prize paid out per RM&nbsp;1 staked on
+      that bet type. <em>Big Forecast</em> covers all 5 tiers (1st, 2nd, 3rd, Special, Consolation);
+      <em>Small Forecast</em> pays larger top-tier prizes but covers only 1st&ndash;3rd.
+      Rates shown are the standard published rates for the basic 4D game and may differ for
+      iBet, 4D&nbsp;Jackpot, mBox, or other variant games offered by each operator.
+    </div>
+
+  </div>
+</div>
+{% endblock %}

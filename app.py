@@ -420,6 +420,32 @@ PRIZE_LABEL = {
 LOTTERY_ORDER = ["damacai", "magnum", "toto"]
 DRAW_DAYS = {2, 5, 6}  # Wednesday, Saturday, Sunday
 
+# Standard payout rates (RM per RM1 bet) for the basic 4D game published by each
+# operator. Ordered by user-requested priority: Damacai, Magnum, SportsTOTO.
+PAYOUT_RATES = [
+    {
+        "key": "damacai",
+        "label": "DAMACAI 1+3D",
+        "tagline": "Pan Malaysian Pools",
+        "big": {"1st": 2500, "2nd": 1000, "3rd": 500, "special": 180, "consolation": 60},
+        "small": {"1st": 3500, "2nd": 2000, "3rd": 1000},
+    },
+    {
+        "key": "magnum",
+        "label": "MAGNUM 4D",
+        "tagline": "Magnum Corporation",
+        "big": {"1st": 2500, "2nd": 1000, "3rd": 500, "special": 180, "consolation": 60},
+        "small": {"1st": 3500, "2nd": 2000, "3rd": 1000},
+    },
+    {
+        "key": "toto",
+        "label": "SPORTS TOTO 4D",
+        "tagline": "Sports Toto Malaysia",
+        "big": {"1st": 2500, "2nd": 1000, "3rd": 500, "special": 180, "consolation": 60},
+        "small": {"1st": 3500, "2nd": 2000, "3rd": 1000},
+    },
+]
+
 
 _results_cache: dict | None = None
 _results_mtime: float = 0.0
@@ -549,6 +575,16 @@ def index():
     recent = latest_draws(data)
     total_dates = len(data)
     return render_template("index.html", recent=recent, total_dates=total_dates, active_page="results")
+
+
+@app.route("/payouts")
+def payouts():
+    return render_template(
+        "payouts.html",
+        payouts=PAYOUT_RATES,
+        prize_label=PRIZE_LABEL,
+        active_page="payouts",
+    )
 
 
 def compute_extended_stats(data: dict, lottery: str | None = None) -> dict:
