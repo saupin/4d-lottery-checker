@@ -26,7 +26,16 @@ jobs:
         id: claude
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          direct_commit: true
+
+      - name: Auto-merge Claude branch to master
+        if: steps.claude.outcome == 'success' && steps.claude.outputs.branch_name != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout master
+          git merge origin/${{ steps.claude.outputs.branch_name }} --no-edit
+          git push origin master
 
       - name: Notify Telegram
         if: always()
