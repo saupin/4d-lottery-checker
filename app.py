@@ -7,16 +7,17 @@ Reads lot_results.json and lets users check a 4-digit number for prizes.
 import json
 import math
 import os
+import secrets
+import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from functools import wraps
+import requests as _req
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-4d-change-in-prod")
-
-import requests as _req
 
 _SB_URL         = os.environ.get("SUPABASE_URL")
 _SB_KEY         = os.environ.get("SUPABASE_KEY")
@@ -117,6 +118,23 @@ def _delete_user(username: str) -> None:
     if os.path.exists(path):
         os.remove(path)
 
+
+def _update_user_password(username: str, pw_hash: str) -> None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.patch(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}",
+                       headers={**_sb_headers(), "Prefer": "return=minimal"},
+                       json={"password_hash": pw_hash}, timeout=5)
+        except Exception:
+            pass
+        return
+    users = _users_local()
+    if username in users:
+        users[username]["password_hash"] = pw_hash
+        _users_local_save(users)
+
+
 def _list_users() -> list:
     if _SB_URL and _SB_KEY:
         try:
@@ -185,8 +203,36 @@ def approved_required(f):
     return decorated
 
 
+# ── Rate limiting (in-memory, per warm instance) ──────────────────────────────
+_failed_logins: dict = {}   # {ip: [timestamp, ...]}
+_RATE_WINDOW = 300           # 5-minute window
+_RATE_MAX    = 5             # max failures before lockout
+
+def _check_rate_limit(ip: str) -> bool:
+    now  = time.time()
+    hits = [t for t in _failed_logins.get(ip, []) if now - t < _RATE_WINDOW]
+    _failed_logins[ip] = hits
+    return len(hits) < _RATE_MAX
+
+def _record_failed_login(ip: str) -> None:
+    _failed_logins.setdefault(ip, []).append(time.time())
+
+
+# ── CSRF ──────────────────────────────────────────────────────────────────────
+def _csrf_token() -> str:
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(32)
+    return session["csrf_token"]
+
+def _csrf_ok() -> bool:
+    return request.form.get("csrf_token") == session.get("csrf_token")
+
+@app.context_processor
+def _inject_csrf():
+    return {"csrf_token": _csrf_token()}
+
+
 RESULTS_FILE    = os.path.join(os.path.dirname(__file__), "lot_results.json")
-MY_NUMBERS_FILE = os.path.join(os.path.dirname(__file__), "my_numbers.json")
 DREAM_DICT_FILE = os.path.join(os.path.dirname(__file__), "dream_dict.json")
 
 # Traditional Malaysian Chinese 4D dream book (万字梦书) seed associations.
@@ -404,6 +450,21 @@ def _get_predict_cache() -> dict:
         _predict_cache      = cache
         _predict_cache_mtime = mtime
     return _predict_cache
+
+
+_analysis_cache: dict | None = None
+_analysis_cache_mtime: float = 0.0
+
+def _get_analysis_cache() -> dict:
+    global _analysis_cache, _analysis_cache_mtime
+    mtime = os.path.getmtime(RESULTS_FILE) if os.path.exists(RESULTS_FILE) else 0.0
+    if _analysis_cache is None or mtime != _analysis_cache_mtime:
+        data = load_results()
+        stats, counts = compute_stats(data)
+        exts = {k: compute_extended_stats(data, v) for k, v in LOTTERY_KEYS.items()}
+        _analysis_cache      = {"stats": stats, "counts": counts, "exts": exts, "total_dates": len(data)}
+        _analysis_cache_mtime = mtime
+    return _analysis_cache
 
 
 def search_number(number: str, data: dict) -> list[dict]:
@@ -749,11 +810,8 @@ def api_score():
 
 @app.route("/analysis")
 def analysis():
-    data = load_results()
-    stats, counts = compute_stats(data)
-    exts = {k: compute_extended_stats(data, v) for k, v in LOTTERY_KEYS.items()}
-    return render_template("analysis.html", stats=stats, counts=counts,
-                           exts=exts, total_dates=len(data), active_page="analysis")
+    cache = _get_analysis_cache()
+    return render_template("analysis.html", active_page="analysis", **cache)
 
 
 @app.route("/search")
@@ -831,6 +889,10 @@ def login_page():
         return redirect(request.args.get("next") or "/")
     error = None
     if request.method == "POST":
+        ip = request.remote_addr or "unknown"
+        if not _check_rate_limit(ip):
+            error = "Too many failed attempts. Please wait 5 minutes before trying again."
+            return render_template("login.html", error=error, next=request.args.get("next", ""))
         username = request.form.get("username", "").strip().lower()
         password = request.form.get("password", "")
         if _ADMIN_PASSWORD and username == "admin" and password == _ADMIN_PASSWORD:
@@ -840,6 +902,7 @@ def login_page():
             return redirect(request.args.get("next") or "/admin")
         user = _get_user(username)
         if not user or not check_password_hash(user["password_hash"], password):
+            _record_failed_login(ip)
             error = "Invalid username or password."
         else:
             session["user_id"]  = username
@@ -888,13 +951,14 @@ def logout():
 def admin_panel():
     if not session.get("is_admin"):
         return redirect(url_for("login_page", next="/admin"))
-    return render_template("admin.html", users=_list_users(), active_page=None)
+    reset_msg = session.pop("reset_msg", None)
+    return render_template("admin.html", users=_list_users(), active_page=None, reset_msg=reset_msg)
 
 
 @app.route("/admin/approve/<username>", methods=["POST"])
 def admin_approve(username):
-    if not session.get("is_admin"):
-        return jsonify({"error": "Unauthorized"}), 401
+    if not session.get("is_admin"): return jsonify({"error": "Unauthorized"}), 401
+    if not _csrf_ok(): return "CSRF check failed", 403
     _set_approved(username.lower(), True)
     _tg_notify(f"✅ User '{username}' approved — they can now access My Numbers & Simulation.")
     return redirect("/admin")
@@ -902,17 +966,27 @@ def admin_approve(username):
 
 @app.route("/admin/revoke/<username>", methods=["POST"])
 def admin_revoke(username):
-    if not session.get("is_admin"):
-        return jsonify({"error": "Unauthorized"}), 401
+    if not session.get("is_admin"): return jsonify({"error": "Unauthorized"}), 401
+    if not _csrf_ok(): return "CSRF check failed", 403
     _set_approved(username.lower(), False)
     return redirect("/admin")
 
 
 @app.route("/admin/delete/<username>", methods=["POST"])
 def admin_delete(username):
-    if not session.get("is_admin"):
-        return jsonify({"error": "Unauthorized"}), 401
+    if not session.get("is_admin"): return jsonify({"error": "Unauthorized"}), 401
+    if not _csrf_ok(): return "CSRF check failed", 403
     _delete_user(username)
+    return redirect("/admin")
+
+
+@app.route("/admin/reset-password/<username>", methods=["POST"])
+def admin_reset_password(username):
+    if not session.get("is_admin"): return jsonify({"error": "Unauthorized"}), 401
+    if not _csrf_ok(): return "CSRF check failed", 403
+    temp_pw = secrets.token_urlsafe(10)
+    _update_user_password(username.lower(), generate_password_hash(temp_pw))
+    session["reset_msg"] = f"Temporary password for '{username}': {temp_pw}"
     return redirect("/admin")
 
 

@@ -9,6 +9,14 @@
 {% block content %}
 <div class="row justify-content-center">
   <div class="col-lg-7">
+
+    {% if reset_msg %}
+    <div style="background:#0d2010;border:1px solid #22c55e;color:#22c55e;border-radius:8px;
+                padding:.75rem 1rem;font-size:.85rem;margin-bottom:1rem;font-family:monospace">
+      🔑 {{ reset_msg }}
+    </div>
+    {% endif %}
+
     <div class="section-card">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div class="section-title mb-0">Users ({{ users|length }})</div>
@@ -25,7 +33,7 @@
               <th>Username</th>
               <th>Status</th>
               <th>Registered</th>
-              <th style="width:180px"></th>
+              <th style="width:260px"></th>
             </tr>
           </thead>
           <tbody>
@@ -45,15 +53,23 @@
               <td style="white-space:nowrap">
                 {% if u.approved %}
                 <form method="POST" action="/admin/revoke/{{ u.id }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="btn-tbl btn-remove">Revoke</button>
                 </form>
                 {% else %}
                 <form method="POST" action="/admin/approve/{{ u.id }}" style="display:inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="btn-tbl" style="color:#22c55e;border-color:#22c55e">&#9989; Approve</button>
                 </form>
                 {% endif %}
+                <form method="POST" action="/admin/reset-password/{{ u.id }}" style="display:inline"
+                      onsubmit="return confirm('Generate a temporary password for {{ u.id }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="btn-tbl" style="color:#55aacc;border-color:#55aacc;margin-left:.3rem">&#128273; Reset PW</button>
+                </form>
                 <form method="POST" action="/admin/delete/{{ u.id }}" style="display:inline"
                       onsubmit="return confirm('Delete {{ u.id }} and all their data? This cannot be undone.')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="btn-tbl btn-remove" style="margin-left:.3rem">&#128465; Delete</button>
                 </form>
               </td>
