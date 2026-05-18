@@ -42,8 +42,7 @@ jobs:
           echo "Merging $BRANCH into master"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout master
-          git pull origin master
+          git checkout -B master origin/master
           git merge "origin/$BRANCH" --no-edit
           git push origin master
 
