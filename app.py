@@ -16,6 +16,156 @@ from werkzeug.security import check_password_hash, generate_password_hash
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-4d-change-in-prod")
 
+import requests as _req
+
+_SB_URL         = os.environ.get("SUPABASE_URL")
+_SB_KEY         = os.environ.get("SUPABASE_KEY")
+_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+_TG_TOKEN       = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+_TG_CHAT        = os.environ.get("TELEGRAM_CHAT_ID", "")
+
+
+def _sb_headers():
+    return {"apikey": _SB_KEY, "Authorization": f"Bearer {_SB_KEY}",
+            "Content-Type": "application/json"}
+
+
+def _tg_notify(msg: str) -> None:
+    if _TG_TOKEN and _TG_CHAT:
+        try:
+            _req.post(f"https://api.telegram.org/bot{_TG_TOKEN}/sendMessage",
+                      json={"chat_id": _TG_CHAT, "text": msg}, timeout=5)
+        except Exception:
+            pass
+
+
+_USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
+
+def _users_local() -> dict:
+    if os.path.exists(_USERS_FILE):
+        try:
+            return json.loads(open(_USERS_FILE, encoding="utf-8").read())
+        except Exception:
+            pass
+    return {}
+
+def _users_local_save(users: dict) -> None:
+    with open(_USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=2)
+
+def _get_user(username: str) -> dict | None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}&select=*",
+                         headers=_sb_headers(), timeout=5)
+            rows = r.json()
+            return rows[0] if rows else None
+        except Exception:
+            pass
+    return _users_local().get(username)
+
+def _create_user(username: str, pw_hash: str) -> bool:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.post(f"{_SB_URL}/rest/v1/users_store",
+                          headers={**_sb_headers(), "Prefer": "return=minimal"},
+                          json={"id": username, "password_hash": pw_hash, "approved": False},
+                          timeout=5)
+            return r.status_code in (200, 201)
+        except Exception:
+            return False
+    users = _users_local()
+    if username in users:
+        return False
+    users[username] = {"id": username, "password_hash": pw_hash, "approved": False, "created_at": datetime.utcnow().isoformat()}
+    _users_local_save(users)
+    return True
+
+def _set_approved(username: str, approved: bool) -> None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.patch(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}",
+                       headers={**_sb_headers(), "Prefer": "return=minimal"},
+                       json={"approved": approved}, timeout=5)
+        except Exception:
+            pass
+        return
+    users = _users_local()
+    if username in users:
+        users[username]["approved"] = approved
+        _users_local_save(users)
+
+def _list_users() -> list:
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/users_store?select=*&order=created_at.asc",
+                         headers=_sb_headers(), timeout=5)
+            return r.json() if r.ok else []
+        except Exception:
+            pass
+    return list(_users_local().values())
+
+def _load_user_numbers(username: str) -> list:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/user_numbers_store?id=eq.{username}&select=data",
+                         headers=_sb_headers(), timeout=5)
+            rows = r.json()
+            return json.loads(rows[0]["data"]) if rows else []
+        except Exception:
+            pass
+    path = os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json")
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_user_numbers(username: str, data: list) -> None:
+    username = username.lower().strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.post(f"{_SB_URL}/rest/v1/user_numbers_store",
+                      headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
+                      json={"id": username, "data": json.dumps(data, ensure_ascii=False)},
+                      timeout=5)
+        except Exception:
+            pass
+        return
+    with open(os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json"), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Login required"}), 401
+            return redirect(url_for("login_page", next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+def approved_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Login required"}), 401
+            return redirect(url_for("login_page", next=request.path))
+        if not session.get("approved"):
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Account pending approval"}), 403
+            return render_template("pending.html", username=session["user_id"])
+        return f(*args, **kwargs)
+    return decorated
+
+
 RESULTS_FILE    = os.path.join(os.path.dirname(__file__), "lot_results.json")
 MY_NUMBERS_FILE = os.path.join(os.path.dirname(__file__), "my_numbers.json")
 DREAM_DICT_FILE = os.path.join(os.path.dirname(__file__), "dream_dict.json")
@@ -673,166 +823,6 @@ def admin_revoke(username):
     return redirect("/admin")
 
 
-
-
-import requests as _req
-
-_SB_URL        = os.environ.get("SUPABASE_URL")
-_SB_KEY        = os.environ.get("SUPABASE_KEY")
-_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
-_TG_TOKEN      = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-_TG_CHAT       = os.environ.get("TELEGRAM_CHAT_ID", "")
-
-
-def _sb_headers():
-    return {"apikey": _SB_KEY, "Authorization": f"Bearer {_SB_KEY}",
-            "Content-Type": "application/json"}
-
-
-# ── Telegram helper ───────────────────────────────────────────────────────────
-
-def _tg_notify(msg: str) -> None:
-    if _TG_TOKEN and _TG_CHAT:
-        try:
-            _req.post(f"https://api.telegram.org/bot{_TG_TOKEN}/sendMessage",
-                      json={"chat_id": _TG_CHAT, "text": msg}, timeout=5)
-        except Exception:
-            pass
-
-
-# ── User auth (Supabase users_store) ─────────────────────────────────────────
-
-_USERS_FILE = os.path.join(os.path.dirname(__file__), "users.json")
-
-def _users_local() -> dict:
-    if os.path.exists(_USERS_FILE):
-        try:
-            return json.loads(open(_USERS_FILE, encoding="utf-8").read())
-        except Exception:
-            pass
-    return {}
-
-def _users_local_save(users: dict) -> None:
-    with open(_USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, indent=2)
-
-def _get_user(username: str) -> dict | None:
-    username = username.lower().strip()
-    if _SB_URL and _SB_KEY:
-        try:
-            r = _req.get(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}&select=*",
-                         headers=_sb_headers(), timeout=5)
-            rows = r.json()
-            return rows[0] if rows else None
-        except Exception:
-            pass
-    return _users_local().get(username)
-
-def _create_user(username: str, pw_hash: str) -> bool:
-    username = username.lower().strip()
-    if _SB_URL and _SB_KEY:
-        try:
-            r = _req.post(f"{_SB_URL}/rest/v1/users_store",
-                          headers={**_sb_headers(), "Prefer": "return=minimal"},
-                          json={"id": username, "password_hash": pw_hash, "approved": False},
-                          timeout=5)
-            return r.status_code in (200, 201)
-        except Exception:
-            return False
-    users = _users_local()
-    if username in users:
-        return False
-    users[username] = {"id": username, "password_hash": pw_hash, "approved": False, "created_at": datetime.utcnow().isoformat()}
-    _users_local_save(users)
-    return True
-
-def _set_approved(username: str, approved: bool) -> None:
-    username = username.lower().strip()
-    if _SB_URL and _SB_KEY:
-        try:
-            _req.patch(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}",
-                       headers={**_sb_headers(), "Prefer": "return=minimal"},
-                       json={"approved": approved}, timeout=5)
-        except Exception:
-            pass
-        return
-    users = _users_local()
-    if username in users:
-        users[username]["approved"] = approved
-        _users_local_save(users)
-
-def _list_users() -> list:
-    if _SB_URL and _SB_KEY:
-        try:
-            r = _req.get(f"{_SB_URL}/rest/v1/users_store?select=*&order=created_at.asc",
-                         headers=_sb_headers(), timeout=5)
-            return r.json() if r.ok else []
-        except Exception:
-            pass
-    return list(_users_local().values())
-
-
-# ── Per-user My Numbers (Supabase user_numbers_store) ────────────────────────
-
-def _load_user_numbers(username: str) -> list:
-    username = username.lower().strip()
-    if _SB_URL and _SB_KEY:
-        try:
-            r = _req.get(f"{_SB_URL}/rest/v1/user_numbers_store?id=eq.{username}&select=data",
-                         headers=_sb_headers(), timeout=5)
-            rows = r.json()
-            return json.loads(rows[0]["data"]) if rows else []
-        except Exception:
-            pass
-    path = os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json")
-    if not os.path.exists(path):
-        return []
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-def _save_user_numbers(username: str, data: list) -> None:
-    username = username.lower().strip()
-    if _SB_URL and _SB_KEY:
-        try:
-            _req.post(f"{_SB_URL}/rest/v1/user_numbers_store",
-                      headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
-                      json={"id": username, "data": json.dumps(data, ensure_ascii=False)},
-                      timeout=5)
-        except Exception:
-            pass
-        return
-    with open(os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json"), "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-# ── Auth decorators ───────────────────────────────────────────────────────────
-
-def login_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if "user_id" not in session:
-            if request.path.startswith("/api/"):
-                return jsonify({"error": "Login required"}), 401
-            return redirect(url_for("login_page", next=request.path))
-        return f(*args, **kwargs)
-    return decorated
-
-def approved_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if "user_id" not in session:
-            if request.path.startswith("/api/"):
-                return jsonify({"error": "Login required"}), 401
-            return redirect(url_for("login_page", next=request.path))
-        if not session.get("approved"):
-            if request.path.startswith("/api/"):
-                return jsonify({"error": "Account pending approval"}), 403
-            return render_template("pending.html", username=session["user_id"])
-        return f(*args, **kwargs)
-    return decorated
 
 
 def _load_my_numbers() -> list:
