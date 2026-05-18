@@ -1014,33 +1014,9 @@ def admin_feedback():
 def admin_test_analysis():
     if not session.get("is_admin"):
         return redirect(url_for("login_page"))
-    key_set = bool(_ANTHROPIC_KEY)
-    result  = {"anthropic_key_set": key_set, "analysis": "", "analysis_ok": False,
-               "http_status": None, "error": None, "raw_response": None}
-    if key_set:
-        try:
-            r = _req.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": _ANTHROPIC_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 200,
-                    "messages": [{"role": "user", "content": "Say hello in one sentence."}],
-                },
-                timeout=15,
-            )
-            result["http_status"] = r.status_code
-            result["raw_response"] = r.json()
-            if r.ok:
-                result["analysis"] = r.json()["content"][0]["text"].strip()
-                result["analysis_ok"] = True
-        except Exception as e:
-            result["error"] = str(e)
-    return jsonify(result)
+    analysis = _analyse_feedback("test_user", "The prediction scores seem off for DAMACAI.")
+    return jsonify({"anthropic_key_set": bool(_ANTHROPIC_KEY),
+                    "analysis": analysis, "analysis_ok": bool(analysis)})
 
 
 @app.route("/admin")
@@ -1458,25 +1434,28 @@ def _analyse_feedback(user_id: str, text: str) -> str:
         "Complaint / Question / Other), note the key point, and suggest the most "
         "actionable next step if any."
     )
-    try:
-        r = _req.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": _ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": "claude-haiku-4-5-20251001",
-                "max_tokens": 200,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-            timeout=15,
-        )
-        if r.ok:
-            return r.json()["content"][0]["text"].strip()
-    except Exception:
-        pass
+    hdrs = {
+        "x-api-key": _ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    payload = {
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 200,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    for attempt in range(2):
+        try:
+            r = _req.post("https://api.anthropic.com/v1/messages",
+                          headers=hdrs, json=payload, timeout=15)
+            if r.ok:
+                return r.json()["content"][0]["text"].strip()
+            if r.status_code == 529 and attempt == 0:
+                time.sleep(3)
+                continue
+        except Exception:
+            pass
+        break
     return ""
 
 
