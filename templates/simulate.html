@@ -58,20 +58,37 @@
       </div>
       <p class="section-sub">Checked against ALL prizes in real draws since added.</p>
 
+      <!-- Bulk action bar -->
+      <div id="bulk-bar" style="display:none;align-items:center;gap:.75rem;flex-wrap:wrap;
+           background:#f0f0f0;border:1px solid #cccccc;border-radius:8px;
+           padding:.5rem .75rem;margin-bottom:.6rem">
+        <span id="bulk-count" style="font-size:.78rem;font-weight:700;color:#333"></span>
+        <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
+          <input id="bulk-tries" type="number" min="1" max="365" placeholder="tries"
+                 style="width:70px;padding:.2rem .4rem;font-size:.78rem;border:1px solid #aaa;border-radius:4px">
+          <button class="btn-tbl" onclick="bulkEditTries()" style="color:#1d6fbf;border-color:#1d6fbf">&#9998; Change Tries</button>
+          <button class="btn-tbl btn-remove" onclick="bulkDelete()">&#10005; Delete Selected</button>
+        </div>
+      </div>
+
       <div style="overflow-x:auto">
         <table class="table draw-table mb-0" id="my-table">
           <thead>
             <tr>
+              <th style="width:32px">
+                <input type="checkbox" id="select-all-cb" onchange="toggleSelectAll(this)"
+                       title="Select all" style="cursor:pointer">
+              </th>
               <th>Number</th>
               <th>Lottery</th>
               <th>Tries</th>
               <th>Added</th>
               <th>Result</th>
-              <th style="width:110px"></th>
+              <th style="width:90px"></th>
             </tr>
           </thead>
           <tbody id="my-numbers-body">
-            <tr><td colspan="6" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">Loading…</td></tr>
+            <tr><td colspan="7" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -112,8 +129,9 @@
     border-radius:5px; padding:.18rem .5rem; font-size:.7rem;
     cursor:pointer; transition:all .15s; white-space:nowrap;
   }
-  .btn-tbl:hover          { border-color:#333333; color:#000000; }
+  .btn-tbl:hover            { border-color:#333333; color:#000000; }
   .btn-tbl.btn-remove:hover { border-color:#f97316; color:#f97316; }
+  #my-table tbody tr.row-selected td { background:#fff8e0 !important; }
 </style>
 
 <script>
@@ -122,6 +140,8 @@
   let selectedLot  = 'all';
   let editMode     = false;
   let cachedList   = [];
+  let selectedKeys = new Set();
+  let lastResults  = {};
 
   const LOT_LABELS   = { all:'All Lotteries', damacai:'DAMACAI', magnum:'MAGNUM', toto:'SPORTSTOTO' };
   const LOT_KEYWORDS = { damacai:'damacai', magnum:'magnum', toto:'toto' };
@@ -232,24 +252,22 @@
     document.getElementById('entry-form').scrollIntoView({ behavior:'smooth', block:'start' });
   }
 
-  /* ── Remove ── */
-  async function removeEntry(num, lottery, date) {
-    cachedList = await apiRemove(num, lottery, date);
-    renderTable(cachedList);
-  }
-
   /* ── Render table ── */
   function renderTable(list, results) {
-    results = results || {};
+    results = results || lastResults;
+    lastResults = results;
     const tbody = document.getElementById('my-numbers-body');
     if (!list.length) {
-      tbody.innerHTML = `<tr><td colspan="6" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">No numbers saved yet.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">No numbers saved yet.</td></tr>`;
+      updateSelectAllCb();
+      updateBulkBar();
       return;
     }
     tbody.innerHTML = list.map(t => {
       const key    = `${t.num}|${t.lottery}|${t.date}`;
       const tries  = t.tries || 10;
       const res    = results[key];
+      const checked = selectedKeys.has(key);
       let resultCell = '<span class="res-pending">—</span>';
       if (res !== undefined) {
         if (res.checking) {
@@ -261,27 +279,88 @@
           resultCell = `<span class="res-win">${icon} ${w.prize} &bull; ${w.date_fmt}</span>`;
           if (res.wins.length > 1) resultCell += ` <span style="color:#888;font-size:.68rem">(+${res.wins.length-1} more)</span>`;
         } else {
-          const checked = res.draws_checked || 0;
-          resultCell = checked >= tries
+          const drawn = res.draws_checked || 0;
+          resultCell = drawn >= tries
             ? `<span class="res-done">No wins in ${tries} draw${tries!==1?'s':''}</span>`
-            : `<span class="res-miss">No wins &bull; ${checked}/${tries} draws</span>`;
+            : `<span class="res-miss">No wins &bull; ${drawn}/${tries} draws</span>`;
         }
       }
       return `
-        <tr>
+        <tr class="${checked ? 'row-selected' : ''}">
+          <td style="text-align:center">
+            <input type="checkbox" class="row-cb" ${checked ? 'checked' : ''}
+                   onchange="onRowCheck('${key}',this)" style="cursor:pointer">
+          </td>
           <td class="cell-num">${t.num}</td>
           <td class="cell-lot">${LOT_LABELS[t.lottery]}</td>
           <td class="cell-tries">${tries}</td>
           <td class="cell-date">${fmtDate(t.date)}</td>
           <td class="cell-result">${resultCell}</td>
           <td>
-            <div class="d-flex gap-1">
-              <button class="btn-tbl" onclick="editEntry('${t.num}','${t.lottery}','${t.date}',${tries})">&#9998; Edit</button>
-              <button class="btn-tbl btn-remove" onclick="removeEntry('${t.num}','${t.lottery}','${t.date}')">&#10005;</button>
-            </div>
+            <button class="btn-tbl" onclick="editEntry('${t.num}','${t.lottery}','${t.date}',${tries})">&#9998; Edit</button>
           </td>
         </tr>`;
     }).join('');
+    updateSelectAllCb();
+    updateBulkBar();
+  }
+
+  /* ── Checkbox helpers ── */
+  function onRowCheck(key, cb) {
+    if (cb.checked) selectedKeys.add(key); else selectedKeys.delete(key);
+    updateSelectAllCb();
+    updateBulkBar();
+  }
+
+  function toggleSelectAll(cb) {
+    selectedKeys = cb.checked ? new Set(cachedList.map(t => `${t.num}|${t.lottery}|${t.date}`)) : new Set();
+    renderTable(cachedList, lastResults);
+  }
+
+  function updateSelectAllCb() {
+    const cb = document.getElementById('select-all-cb');
+    if (!cb) return;
+    cb.checked       = cachedList.length > 0 && selectedKeys.size === cachedList.length;
+    cb.indeterminate = selectedKeys.size > 0 && selectedKeys.size < cachedList.length;
+  }
+
+  function updateBulkBar() {
+    const bar = document.getElementById('bulk-bar');
+    const n   = selectedKeys.size;
+    bar.style.display = n > 0 ? 'flex' : 'none';
+    document.getElementById('bulk-count').textContent = `${n} selected`;
+  }
+
+  /* ── Bulk delete ── */
+  async function bulkDelete() {
+    const n = selectedKeys.size;
+    if (!n || !confirm(`Delete ${n} entr${n > 1 ? 'ies' : 'y'}?`)) return;
+    for (const key of selectedKeys) {
+      const [num, lottery, date] = key.split('|');
+      await apiRemove(num, lottery, date);
+    }
+    selectedKeys.clear();
+    cachedList = await apiGet();
+    lastResults = {};
+    renderTable(cachedList, {});
+    if (cachedList.length) checkAll();
+  }
+
+  /* ── Bulk edit tries ── */
+  async function bulkEditTries() {
+    const tries = parseInt(document.getElementById('bulk-tries').value, 10);
+    if (!tries || tries < 1) { showMsg('Enter a valid number of tries.', 'danger'); return; }
+    for (const key of selectedKeys) {
+      const [num, lottery, date] = key.split('|');
+      await apiUpdate(num, lottery, date, lottery, tries);
+    }
+    selectedKeys.clear();
+    cachedList = await apiGet();
+    lastResults = {};
+    renderTable(cachedList, {});
+    if (cachedList.length) checkAll();
+    document.getElementById('bulk-tries').value = '';
+    showMsg('Tries updated.', 'success');
   }
 
   /* ── Check one ── */
@@ -310,6 +389,7 @@
     await Promise.all(cachedList.map(async t => {
       results[`${t.num}|${t.lottery}|${t.date}`] = await checkOne(t);
     }));
+    lastResults = results;
     renderTable(cachedList, results);
   }
 
