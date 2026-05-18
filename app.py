@@ -234,6 +234,7 @@ def _inject_csrf():
 
 RESULTS_FILE    = os.path.join(os.path.dirname(__file__), "lot_results.json")
 DREAM_DICT_FILE = os.path.join(os.path.dirname(__file__), "dream_dict.json")
+_FEEDBACK_FILE  = os.path.join(os.path.dirname(__file__), "feedback.json")
 
 # Traditional Malaysian Chinese 4D dream book (万字梦书) seed associations.
 # Keys are lowercase English keywords; nums are 4-digit strings.
@@ -974,6 +975,41 @@ def logout():
     return redirect("/")
 
 
+@app.route("/feedback", methods=["GET", "POST"])
+def feedback_page():
+    if "user_id" not in session:
+        return redirect(url_for("login_page", next="/feedback"))
+    success = False
+    error   = None
+    if request.method == "POST":
+        if not _csrf_ok():
+            return "CSRF check failed", 403
+        text = request.form.get("feedback", "").strip()
+        if not text:
+            error = "Feedback cannot be empty."
+        elif len(text) > 500:
+            error = "Feedback must be 500 characters or fewer."
+        elif _recent_feedback_count(session["user_id"]) >= 3:
+            error = "You have already submitted 3 feedbacks in the last 24 hours. Please wait before submitting again."
+        else:
+            _save_feedback(session["user_id"], text)
+            analysis = _analyse_feedback(session["user_id"], text)
+            parts = [f"💬 New feedback from @{session['user_id']}:\n\n\"{text}\""]
+            if analysis:
+                parts.append(f"\n🤖 Claude's take:\n{analysis}")
+            _tg_notify("\n".join(parts))
+            success = True
+    return render_template("feedback.html", success=success, error=error, active_page="feedback")
+
+
+@app.route("/admin/feedback")
+def admin_feedback():
+    if not session.get("is_admin"):
+        return redirect(url_for("login_page", next="/admin/feedback"))
+    items = _list_feedback()
+    return render_template("admin_feedback.html", items=items, active_page=None)
+
+
 @app.route("/admin")
 def admin_panel():
     if not session.get("is_admin"):
@@ -1194,6 +1230,71 @@ def api_my_numbers_update():
     return jsonify(data)
 
 
+# ── Feedback storage ──────────────────────────────────────────────────────────
+
+def _save_feedback(user_id: str, text: str) -> None:
+    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.post(f"{_SB_URL}/rest/v1/feedback_store",
+                      headers={**_sb_headers(), "Prefer": "return=minimal"},
+                      json={"user_id": user_id, "feedback": text, "submitted_at": now},
+                      timeout=5)
+        except Exception:
+            pass
+        return
+    items = []
+    if os.path.exists(_FEEDBACK_FILE):
+        try:
+            items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
+        except Exception:
+            pass
+    items.insert(0, {"user_id": user_id, "feedback": text, "submitted_at": now})
+    try:
+        with open(_FEEDBACK_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, indent=2)
+    except OSError:
+        pass
+
+
+def _list_feedback() -> list:
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(
+                f"{_SB_URL}/rest/v1/feedback_store?select=*&order=submitted_at.desc",
+                headers=_sb_headers(), timeout=5)
+            return r.json() if r.ok else []
+        except Exception:
+            return []
+    if os.path.exists(_FEEDBACK_FILE):
+        try:
+            return json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
+        except Exception:
+            pass
+    return []
+
+
+def _recent_feedback_count(user_id: str) -> int:
+    cutoff = (datetime.utcnow() - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(
+                f"{_SB_URL}/rest/v1/feedback_store"
+                f"?user_id=eq.{user_id}&submitted_at=gte.{cutoff}&select=id",
+                headers=_sb_headers(), timeout=5)
+            return len(r.json() or []) if r.ok else 0
+        except Exception:
+            return 0
+    if not os.path.exists(_FEEDBACK_FILE):
+        return 0
+    try:
+        items = json.loads(open(_FEEDBACK_FILE, encoding="utf-8").read())
+        return sum(1 for i in items
+                   if i.get("user_id") == user_id and i.get("submitted_at", "") >= cutoff)
+    except Exception:
+        return 0
+
+
 # ── Dream dictionary storage ──────────────────────────────────────────────────
 
 _ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY")
@@ -1303,6 +1404,40 @@ def _call_claude(description: str) -> dict | None:
         return result if result["nums"] else None
     except Exception:
         return None
+
+
+def _analyse_feedback(user_id: str, text: str) -> str:
+    """Ask Claude to classify and comment on user feedback (2-3 sentences)."""
+    if not _ANTHROPIC_KEY:
+        return ""
+    prompt = (
+        "A user submitted feedback for a 4D lottery tracking web app.\n"
+        f"User: {user_id}\n"
+        f"Feedback: {text}\n\n"
+        "In 2-3 concise sentences: classify it (Bug / Feature Request / Praise / "
+        "Complaint / Question / Other), note the key point, and suggest the most "
+        "actionable next step if any."
+    )
+    try:
+        r = _req.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": _ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 200,
+                "messages": [{"role": "user", "content": prompt}],
+            },
+            timeout=15,
+        )
+        if r.ok:
+            return r.json()["content"][0]["text"].strip()
+    except Exception:
+        pass
+    return ""
 
 
 @app.route("/api/dream/ping")

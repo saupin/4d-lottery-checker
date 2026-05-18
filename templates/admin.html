@@ -20,7 +20,10 @@
     <div class="section-card">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div class="section-title mb-0">Users ({{ users|length }})</div>
-        <a href="/logout" style="font-size:.78rem;color:#55667a;text-decoration:none">Logout</a>
+        <div class="d-flex gap-3 align-items-center">
+          <a href="/admin/feedback" style="font-size:.78rem;color:#55aacc;text-decoration:none">&#128172; Feedback</a>
+          <a href="/logout" style="font-size:.78rem;color:#55667a;text-decoration:none">Logout</a>
+        </div>
       </div>
 
       {% if not users %}

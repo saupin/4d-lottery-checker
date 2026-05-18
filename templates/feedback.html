@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Feedback — 4D Lottery{% endblock %}
+
+{% block header %}
+  <h1>&#128172; Feedback</h1>
+  <p>Share your thoughts, report bugs, or suggest improvements.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+
+    {% if success %}
+    <div style="background:#0d2010;border:1px solid #22c55e;color:#22c55e;border-radius:12px;
+                padding:1.5rem;text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:2rem;margin-bottom:.5rem">&#9989;</div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:.25rem">Thank you for your feedback!</div>
+      <div style="font-size:.82rem;color:#8899aa">Your submission has been received and will be reviewed.</div>
+      <a href="/" style="display:inline-block;margin-top:1rem;font-size:.82rem;color:#55aacc">
+        &#8592; Back to Results
+      </a>
+    </div>
+    {% else %}
+
+    {% if error %}
+    <div style="background:#1a0d0d;border:1px solid #f97316;color:#f97316;border-radius:8px;
+                padding:.75rem 1rem;font-size:.85rem;margin-bottom:1rem">
+      &#9888; {{ error }}
+    </div>
+    {% endif %}
+
+    <div class="section-card">
+      <div class="section-title mb-1">&#128172; Submit Feedback</div>
+      <div class="section-sub">Logged in as <strong style="color:#55aacc">{{ session['user_id'] }}</strong> &mdash; max 500 characters</div>
+
+      <form method="POST" action="/feedback">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <textarea id="feedbackText" name="feedback"
+                  maxlength="500" rows="6"
+                  placeholder="Tell us what's working, what's broken, or what you'd like to see…"
+                  style="width:100%;background:#0f1923;border:2px solid #2a3f55;color:#e8eaf0;
+                         border-radius:10px;padding:.75rem 1rem;font-size:.9rem;
+                         font-family:'Segoe UI',sans-serif;resize:vertical;
+                         transition:border-color .2s;outline:none"
+                  onfocus="this.style.borderColor='#f5c518'"
+                  onblur="this.style.borderColor='#2a3f55'"
+                  oninput="updateCount(this)"></textarea>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.4rem;margin-bottom:1rem">
+          <span id="charCount" style="font-size:.75rem;color:#55667a">0 / 500</span>
+          <span id="charWarn"  style="font-size:.72rem;color:#f97316;display:none">Limit reached</span>
+        </div>
+
+        <button type="submit" class="btn-search" style="width:100%">
+          &#128172; Submit Feedback
+        </button>
+      </form>
+    </div>
+
+    <div style="margin-top:1.25rem;font-size:.75rem;color:#55667a;text-align:center;line-height:1.7">
+      Feedback is anonymous to other users and reviewed by the admin only.<br>
+      Limit: 3 submissions per 24 hours.
+    </div>
+
+    {% endif %}
+
+  </div>
+</div>
+
+<script>
+  function updateCount(el) {
+    const len = el.value.length;
+    const countEl = document.getElementById('charCount');
+    const warnEl  = document.getElementById('charWarn');
+    countEl.textContent = `${len} / 500`;
+    const near = len >= 450;
+    countEl.style.color = near ? (len >= 500 ? '#f97316' : '#f5c518') : '#55667a';
+    warnEl.style.display = len >= 500 ? 'inline' : 'none';
+  }
+</script>
+{% endblock %}
