@@ -401,7 +401,11 @@
     <a href="/" class="nav-link {% if active_page == 'results' %}active{% endif %}">Results</a>
     <a href="/analysis" class="nav-link {% if active_page == 'analysis' %}active{% endif %}">Analysis</a>
     <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
-    {% if session.get('approved') %}<a href="/simulate" class="nav-link {% if active_page == 'simulate' %}active{% endif %}">Simulation</a>{% endif %}
+    {% if session.get('approved') %}
+    <a href="/simulate" class="nav-link {% if active_page == 'simulate' %}active{% endif %}">Simulation</a>
+    {% else %}
+    <span class="nav-link" style="opacity:.4;cursor:not-allowed" title="Only Logged-in users are allowed to use this function.">Simulation</span>
+    {% endif %}
     <a href="/dream" class="nav-link {% if active_page == 'dream' %}active{% endif %}">Dream</a>
     <div class="ms-auto d-flex align-items-center gap-1">
       {% if session.get('user_id') %}
