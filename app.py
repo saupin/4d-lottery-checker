@@ -1010,6 +1010,19 @@ def admin_feedback():
     return render_template("admin_feedback.html", items=items, active_page=None)
 
 
+@app.route("/admin/test-analysis")
+def admin_test_analysis():
+    if not session.get("is_admin"):
+        return redirect(url_for("login_page"))
+    key_set   = bool(_ANTHROPIC_KEY)
+    analysis  = _analyse_feedback("test_user", "The prediction scores seem off — DAMACAI numbers rarely match.") if key_set else ""
+    return jsonify({
+        "anthropic_key_set": key_set,
+        "analysis": analysis,
+        "analysis_ok": bool(analysis),
+    })
+
+
 @app.route("/admin")
 def admin_panel():
     if not session.get("is_admin"):
