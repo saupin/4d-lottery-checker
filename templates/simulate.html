@@ -363,34 +363,20 @@
     showMsg('Tries updated.', 'success');
   }
 
-  /* ── Check one ── */
-  async function checkOne(entry) {
-    try {
-      const r    = await fetch(`/search?number=${encodeURIComponent(entry.num)}`);
-      const data = await r.json();
-      if (!r.ok) return { wins:[], draws_checked:0 };
-      const after = entry.date;
-      const allAfter  = data.matches.filter(m => m.date >= after);
-      const drawDates = new Set(allAfter.map(m => m.date));
-      const wins = allAfter.filter(m =>
-        (entry.lottery === 'all' || m.lottery.toLowerCase().includes(LOT_KEYWORDS[entry.lottery]))
-      );
-      return { wins, draws_checked: drawDates.size };
-    } catch { return { wins:[], draws_checked:0 }; }
-  }
-
   /* ── Check all ── */
   async function checkAll() {
     if (!cachedList.length) return;
     const pending = {};
     cachedList.forEach(t => { pending[`${t.num}|${t.lottery}|${t.date}`] = { checking:true }; });
     renderTable(cachedList, pending);
-    const results = {};
-    await Promise.all(cachedList.map(async t => {
-      results[`${t.num}|${t.lottery}|${t.date}`] = await checkOne(t);
-    }));
-    lastResults = results;
-    renderTable(cachedList, results);
+    try {
+      const r = await fetch('/api/my-numbers/check-all', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(cachedList.map(t => ({ num:t.num, lottery:t.lottery, date:t.date })))
+      });
+      lastResults = await r.json();
+    } catch { lastResults = {}; }
+    renderTable(cachedList, lastResults);
   }
 
   /* ── Init ── */

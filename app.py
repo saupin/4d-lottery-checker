@@ -675,6 +675,65 @@ def api_my_numbers_remove():
     return jsonify(data)
 
 
+@app.route("/api/my-numbers/check-all", methods=["POST"])
+def api_check_all():
+    entries = request.get_json(silent=True) or []
+    if not entries:
+        return jsonify({})
+
+    data = load_results()
+
+    # Index entries by number for O(1) lookup during the scan
+    from collections import defaultdict
+    num_index = defaultdict(list)
+    for e in entries:
+        num_index[e["num"]].append(e)
+
+    results     = {f"{e['num']}|{e['lottery']}|{e['date']}": {"wins": [], "draw_dates": set()} for e in entries}
+
+    for date_str in sorted(data.keys()):
+        day = data[date_str]
+        for lot_key in LOTTERY_ORDER:
+            lottery = day.get(lot_key)
+            if not lottery:
+                continue
+            prizes = lottery.get("prizes", {})
+            for tier in PRIZE_ORDER:
+                val = prizes.get(tier)
+                if not val:
+                    continue
+                # val is str for top-3, list for special/consolation
+                nums_in_prize = [val] if isinstance(val, str) else val
+                for num in nums_in_prize:
+                    if num not in num_index:
+                        continue
+                    for e in num_index[num]:
+                        if date_str < e["date"]:
+                            continue
+                        if e["lottery"] != "all" and lot_key != e["lottery"]:
+                            continue
+                        key = f"{num}|{e['lottery']}|{e['date']}"
+                        results[key]["draw_dates"].add(date_str)
+                        results[key]["wins"].append({
+                            "date":       date_str,
+                            "date_fmt":   datetime.strptime(date_str, "%Y-%m-%d").strftime("%a, %d %b %Y"),
+                            "lottery":    lottery.get("label", lot_key.upper()),
+                            "prize":      PRIZE_LABEL[tier],
+                            "tier":       tier,
+                        })
+            # Count draw dates for entries with no hits on this date too
+            for e in entries:
+                if date_str >= e["date"]:
+                    key = f"{e['num']}|{e['lottery']}|{e['date']}"
+                    results[key]["draw_dates"].add(date_str)
+
+    # Replace draw_dates set with count before returning
+    for key in results:
+        results[key]["draws_checked"] = len(results[key].pop("draw_dates"))
+
+    return jsonify(results)
+
+
 @app.route("/api/my-numbers/bulk-remove", methods=["POST"])
 def api_my_numbers_bulk_remove():
     keys = request.get_json(silent=True) or []
