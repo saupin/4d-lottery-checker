@@ -11,6 +11,13 @@ on:
 jobs:
   claude:
     runs-on: ubuntu-latest
+    # Skip bot-authored comments to prevent re-triggering after Claude posts its own "finished" comment
+    if: >
+      github.event_name == 'issues' ||
+      github.event_name == 'pull_request_review_comment' ||
+      (github.event_name == 'issue_comment' &&
+       !contains(github.event.comment.user.login, '[bot]') &&
+       github.event.comment.user.type != 'Bot')
     permissions:
       contents: write
       issues: write
@@ -40,6 +47,11 @@ jobs:
             echo "No claude branch found for issue #${ISSUE_NUM}, skipping merge."
             exit 0
           fi
+          # Skip if this branch is already in master
+          if git merge-base --is-ancestor "origin/$BRANCH" origin/master; then
+            echo "Branch $BRANCH already merged, nothing to do."
+            exit 0
+          fi
           echo "Merging $BRANCH into master"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -49,7 +61,7 @@ jobs:
           echo "Merge complete."
 
       - name: Notify Telegram
-        if: always()
+        if: steps.merge.outcome == 'success' || steps.merge.outcome == 'failure'
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
