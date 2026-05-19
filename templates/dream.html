@@ -42,6 +42,23 @@
   .dream-num-card:hover { border-color: #3a5070; }
   .dream-num-val { font-family: monospace; font-size: 1.5rem; font-weight: 700; color: #e8eaf0; }
 
+  .dream-prob-row {
+    display: flex; justify-content: center; gap: .25rem; margin: .35rem 0 .4rem;
+  }
+  .dream-prob-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.25rem; height: 1.25rem; border-radius: 50%;
+    font-family: monospace; font-size: .72rem; font-weight: 700;
+    color: #0b1018; border: 1px solid rgba(0,0,0,.25); cursor: help;
+  }
+  .dream-prob-high { background: #22c55e; }
+  .dream-prob-med  { background: #f5c518; }
+  .dream-prob-low  { background: #ef4444; color: #fff; }
+  .dream-prob-legend {
+    font-size: .68rem; color: #8899aa; margin-top: .4rem; line-height: 1.4;
+  }
+  .dream-prob-legend .dream-prob-badge { width: .9rem; height: .9rem; font-size: .6rem; vertical-align: middle; }
+
   @media (max-width: 767px) {
     .dream-result-card { padding: 1rem; }
     .dream-nums-grid { grid-template-columns: repeat(2, 1fr); }
@@ -196,12 +213,41 @@
       const sourceName  = data.source === 'claude' ? '&#129302; AI Lookup' : '&#128218; Cached';
 
       const trackDisabled = canTrack ? '' : 'disabled title="Only Logged-in users are allowed to use this function."';
-      const numsHtml = (data.nums || []).map(num => `
+      const probs = data.probs || {};
+      const lotMeta = [
+        { key: 'damacai', letter: 'D', name: 'Damacai'    },
+        { key: 'magnum',  letter: 'M', name: 'Magnum'     },
+        { key: 'toto',    letter: 'T', name: 'Sportstoto' },
+      ];
+      const tierLabel = { high: 'High', med: 'Medium', low: 'Low' };
+      const numsHtml = (data.nums || []).map(num => {
+        const p = probs[num] || {};
+        const badges = lotMeta.map(({ key, letter, name }) => {
+          const info = p[key] || { tier: 'low', score_pct: 0 };
+          const cls  = 'dream-prob-' + (info.tier || 'low');
+          const pct  = (info.score_pct != null) ? Number(info.score_pct).toFixed(1) : '0.0';
+          return `<span class="dream-prob-badge ${cls}" title="${name}: ${tierLabel[info.tier] || 'Low'} (score ${pct})">${letter}</span>`;
+        }).join('');
+        return `
         <div class="dream-num-card">
           <div class="dream-num-val">${num}</div>
+          <div class="dream-prob-row">${badges}</div>
           <button class="btn-add-sim" id="dsim-${num}" ${trackDisabled}
                   onclick="addToSim('${num}','${selectedLot}',this)">+ Track</button>
-        </div>`).join('');
+        </div>`;
+      }).join('');
+
+      const hasProbs = Object.keys(probs).length > 0;
+      const legendHtml = hasProbs ? `
+        <div class="dream-prob-legend">
+          Next-draw win likelihood per lottery —
+          <span class="dream-prob-badge dream-prob-high">D</span> Damacai,
+          <span class="dream-prob-badge dream-prob-med">M</span> Magnum,
+          <span class="dream-prob-badge dream-prob-low">T</span> Sportstoto.
+          Colour: <span style="color:#22c55e">green</span> = high,
+          <span style="color:#f5c518">yellow</span> = medium,
+          <span style="color:#ef4444">red</span> = low.
+        </div>` : '';
 
       document.getElementById('dream-result').innerHTML = `
         <div class="dream-result-card">
@@ -210,6 +256,7 @@
           ${data.explanation ? `<div style="font-size:.82rem;color:#8899aa;margin-bottom:.9rem">${data.explanation}</div>` : ''}
           <div style="font-size:.72rem;color:#8899aa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.25rem">Lucky Numbers</div>
           <div class="dream-nums-grid">${numsHtml}</div>
+          ${legendHtml}
           ${data.source === 'claude' ? `<div style="font-size:.7rem;color:#334455;margin-top:1rem">&#128204; Saved to dictionary — future lookups for this phrase will be instant.</div>` : ''}
         </div>`;
 

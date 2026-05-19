@@ -1825,6 +1825,31 @@ def dream():
     return render_template("dream.html", active_page="dream", next_draw=next_draw_date())
 
 
+def _dream_num_probs(nums: list[str]) -> dict:
+    """For each dream lucky number, classify next-draw win likelihood per lottery
+    into green / yellow / red tiers using the cached prediction model.
+    Thresholds are based on the relative score_pct (composite / top_composite).
+    """
+    cache = _get_predict_cache()
+    out: dict = {}
+    for num in nums or []:
+        if not (isinstance(num, str) and len(num) == 4 and num.isdigit()):
+            continue
+        per_lot = {}
+        for key in ("damacai", "magnum", "toto"):
+            entry = cache.get(key, {}).get("rank_map", {}).get(num)
+            score_pct = float(entry["score_pct"]) if entry else 0.0
+            if score_pct >= 35:
+                tier = "high"   # green
+            elif score_pct >= 15:
+                tier = "med"    # yellow
+            else:
+                tier = "low"    # red
+            per_lot[key] = {"tier": tier, "score_pct": score_pct}
+        out[num] = per_lot
+    return out
+
+
 @app.route("/api/dream", methods=["POST"])
 def api_dream():
     body = request.get_json(silent=True) or {}
@@ -1837,7 +1862,7 @@ def api_dream():
     # Check phrase cache first — avoids calling Claude for repeated queries
     match = _match_dream(description, d)
     if match:
-        return jsonify({"source": "cache", **match})
+        return jsonify({"source": "cache", "probs": _dream_num_probs(match.get("nums", [])), **match})
 
     # Send the full phrase to Claude
     if _ANTHROPIC_KEY:
@@ -1860,7 +1885,7 @@ def api_dream():
                         "explanation": result.get("explanation", ""),
                     }
             _save_dream_dict(d)
-            return jsonify({"source": "claude", **result})
+            return jsonify({"source": "claude", "probs": _dream_num_probs(result.get("nums", [])), **result})
         return jsonify({"source": "none",
                         "message": "Claude could not find a traditional 4D association for this."}), 200
 
