@@ -33,6 +33,7 @@ jobs:
         env:
           ISSUE_NUM: ${{ github.event.issue.number }}
         run: |
+          set -e
           git fetch origin
           BRANCH=$(git branch -r | grep "origin/claude/issue-${ISSUE_NUM}-" | sed 's|.*origin/||' | sort | tail -1)
           if [ -z "$BRANCH" ]; then
@@ -45,6 +46,7 @@ jobs:
           git checkout -B master origin/master
           git merge "origin/$BRANCH" --no-edit
           git push origin master
+          echo "Merge complete."
 
       - name: Notify Telegram
         if: always()
