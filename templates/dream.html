@@ -124,21 +124,49 @@
   const dreamInput = document.getElementById('dreamInput');
   let selectedLot  = 'all';
 
+  const DREAM_STATE_KEY = 'dreamState';
+  function saveDreamState() {
+    try {
+      sessionStorage.setItem(DREAM_STATE_KEY, JSON.stringify({
+        description: dreamInput.value,
+        lot:         selectedLot,
+        resultHtml:  document.getElementById('dream-result').innerHTML,
+      }));
+    } catch (e) { /* sessionStorage unavailable — ignore */ }
+  }
+  function clearDreamState() {
+    try { sessionStorage.removeItem(DREAM_STATE_KEY); } catch (e) {}
+  }
+  function restoreDreamState() {
+    try {
+      const raw = sessionStorage.getItem(DREAM_STATE_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s.description) dreamInput.value = s.description;
+      if (s.lot && document.getElementById('dl-' + s.lot)) selectLot(s.lot);
+      if (s.resultHtml) document.getElementById('dream-result').innerHTML = s.resultHtml;
+    } catch (e) { /* corrupt state — ignore */ }
+  }
+
   function selectLot(key) {
     selectedLot = key;
     document.querySelectorAll('[id^="dl-"]').forEach(el => el.classList.remove('active'));
     document.getElementById('dl-' + key).classList.add('active');
+    saveDreamState();
   }
 
   function clearDream() {
     dreamInput.value = '';
     document.getElementById('dream-result').innerHTML = '';
+    clearDreamState();
     dreamInput.focus();
   }
 
   dreamInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lookupDream(); }
   });
+  dreamInput.addEventListener('input', saveDreamState);
+  document.addEventListener('DOMContentLoaded', restoreDreamState);
 
   async function addToSim(num, lottery, btn) {
     btn.disabled = true;
@@ -206,6 +234,7 @@
             <span class="dream-source-badge dream-source-none">No Match</span>
             <div style="color:#8899aa;font-size:.88rem">${data.message || 'No traditional 4D association found.'}</div>
           </div>`;
+        saveDreamState();
         return;
       }
 
@@ -259,6 +288,7 @@
           ${legendHtml}
           ${data.source === 'claude' ? `<div style="font-size:.7rem;color:#334455;margin-top:1rem">&#128204; Saved to dictionary — future lookups for this phrase will be instant.</div>` : ''}
         </div>`;
+      saveDreamState();
 
     } catch(err) {
       document.getElementById('dream-result').innerHTML =
