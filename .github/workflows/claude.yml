@@ -61,11 +61,12 @@ jobs:
           echo "Merge complete."
 
       - name: Notify Telegram
-        if: steps.merge.outcome == 'success' || steps.merge.outcome == 'failure'
+        if: always() && steps.claude.outcome != 'skipped'
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-          OUTCOME: ${{ steps.merge.outcome }}
+          CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
+          MERGE_OUTCOME: ${{ steps.merge.outcome }}
           ISSUE_NUM: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
