@@ -125,7 +125,9 @@
   let selectedLot  = 'all';
 
   const DREAM_STATE_KEY = 'dreamState';
+  let restoringDreamState = false;
   function saveDreamState() {
+    if (restoringDreamState) return;
     try {
       sessionStorage.setItem(DREAM_STATE_KEY, JSON.stringify({
         description: dreamInput.value,
@@ -138,14 +140,16 @@
     try { sessionStorage.removeItem(DREAM_STATE_KEY); } catch (e) {}
   }
   function restoreDreamState() {
+    restoringDreamState = true;
     try {
       const raw = sessionStorage.getItem(DREAM_STATE_KEY);
       if (!raw) return;
       const s = JSON.parse(raw);
+      if (s.resultHtml) document.getElementById('dream-result').innerHTML = s.resultHtml;
       if (s.description) dreamInput.value = s.description;
       if (s.lot && document.getElementById('dl-' + s.lot)) selectLot(s.lot);
-      if (s.resultHtml) document.getElementById('dream-result').innerHTML = s.resultHtml;
     } catch (e) { /* corrupt state — ignore */ }
+    finally { restoringDreamState = false; }
   }
 
   function selectLot(key) {
