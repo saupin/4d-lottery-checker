@@ -395,6 +395,10 @@
     input.value = '';
     remember.checked = false;
     document.getElementById('email-msg').textContent = '';
+    const n = selectedKeys.size;
+    document.getElementById('email-scope').textContent = n > 0
+      ? `Sending ${n} selected entr${n > 1 ? 'ies' : 'y'}.`
+      : `Sending your full numbers list (${cachedList.length} entr${cachedList.length > 1 ? 'ies' : 'y'}).`;
     document.getElementById('email-modal').style.display = 'flex';
     try {
       const r = await fetch('/api/my-numbers/remembered-email');
@@ -419,11 +423,14 @@
     }
     const btn = document.getElementById('send-email-btn');
     btn.disabled = true; btn.textContent = 'Sending…';
+    const entries = selectedKeys.size > 0
+      ? cachedList.filter(t => selectedKeys.has(`${t.num}|${t.lottery}|${t.date}`))
+      : cachedList;
     try {
       const r = await fetch('/api/my-numbers/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, remember, entries: cachedList })
+        body: JSON.stringify({ email, remember, entries })
       });
       const d = await r.json();
       if (r.ok) {
@@ -455,9 +462,10 @@
               width:min(420px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.6)">
     <div style="font-size:.72rem;color:#55aacc;font-weight:700;text-transform:uppercase;
                 letter-spacing:.6px;margin-bottom:1rem">Send My Numbers</div>
-    <p style="font-size:.85rem;color:#aabbcc;margin-bottom:1rem">
-      Enter an email address and we'll send your full numbers list with results.
+    <p style="font-size:.85rem;color:#aabbcc;margin-bottom:.4rem">
+      Enter an email address and we'll send your numbers list with results.
     </p>
+    <p id="email-scope" style="font-size:.78rem;color:#f5c518;margin-bottom:1rem;min-height:1.1rem"></p>
     <input id="email-input" type="email" placeholder="you@example.com"
            class="number-input mb-3" style="font-size:.9rem"
            onkeydown="if(event.key==='Enter')sendEmail()">
