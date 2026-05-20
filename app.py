@@ -1500,8 +1500,8 @@ def api_my_numbers_send_email():
     if not entries:
         return jsonify({"error": "No numbers to send"}), 400
 
-    gmail_user = os.environ.get("GMAIL_USER", "")
-    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
+    gmail_user = os.environ.get("GMAIL_USER", "").strip()
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "").replace(" ", "").strip()
     if not gmail_user or not gmail_pass:
         return jsonify({"error": "Email service not configured"}), 503
 
@@ -1554,10 +1554,20 @@ def api_my_numbers_send_email():
   </div>
 </body></html>"""
 
+    plain_lines = []
+    for key in lot_order:
+        if key not in grouped:
+            continue
+        plain_lines.append(lot_labels.get(key, key.upper()))
+        plain_lines.extend(grouped[key])
+        plain_lines.append("")
+    plain = "\n".join(plain_lines)
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"Your 4D Numbers — {uid}"
     msg["From"]    = f"4D Lottery Checker <{gmail_user}>"
     msg["To"]      = email
+    msg.attach(MIMEText(plain, "plain"))
     msg.attach(MIMEText(html, "html"))
 
     try:
