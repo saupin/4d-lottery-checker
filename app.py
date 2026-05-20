@@ -1510,7 +1510,7 @@ def api_my_numbers_send_email():
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
-    lot_labels = {"all": "ALL", "damacai": "DA MA CAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+    lot_labels = {"all": "SPORTTOTO / MAGNUM / DA MA CAI", "damacai": "DA MA CAI", "magnum": "MAGNUM", "toto": "SPORTTOTO"}
     lot_order  = ["toto", "magnum", "damacai", "all"]
 
     from collections import defaultdict as _dd
