@@ -21,6 +21,11 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div class="section-title mb-0">Users ({{ users|length }})</div>
         <div class="d-flex gap-3 align-items-center">
+          <button id="scraper-btn" onclick="triggerScraper()"
+                  style="background:none;border:1px solid #22c55e;color:#22c55e;border-radius:5px;
+                         padding:.2rem .65rem;font-size:.78rem;cursor:pointer;transition:all .15s">
+            &#9654; Run Scraper
+          </button>
           <a href="/admin/feedback" style="font-size:.78rem;color:#55aacc;text-decoration:none">&#128172; Feedback</a>
           <a href="/logout" style="font-size:.78rem;color:#55667a;text-decoration:none">Logout</a>
         </div>
@@ -85,4 +90,30 @@
     </div>
   </div>
 </div>
+
+<script>
+async function triggerScraper() {
+  const btn = document.getElementById('scraper-btn');
+  btn.disabled = true;
+  btn.textContent = 'Triggering…';
+  try {
+    const r = await fetch('/admin/trigger-scraper', { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      btn.textContent = '✓ Triggered';
+      btn.style.color = '#22c55e';
+      btn.style.borderColor = '#22c55e';
+    } else {
+      btn.textContent = '✗ Failed';
+      btn.style.color = '#e55';
+      btn.style.borderColor = '#e55';
+      alert(d.error || 'Failed to trigger scraper');
+    }
+  } catch {
+    btn.textContent = '✗ Error';
+    btn.style.color = '#e55';
+    btn.style.borderColor = '#e55';
+  }
+}
+</script>
 {% endblock %}

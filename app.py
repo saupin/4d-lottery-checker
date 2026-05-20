@@ -1258,6 +1258,27 @@ def admin_test_analysis():
                     "analysis": analysis, "analysis_ok": bool(analysis)})
 
 
+@app.route("/admin/trigger-scraper", methods=["POST"])
+def admin_trigger_scraper():
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 403
+    if not _GITHUB_TOKEN or not _GITHUB_REPO:
+        return jsonify({"error": "GitHub not configured"}), 503
+    try:
+        r = _req.post(
+            f"https://api.github.com/repos/{_GITHUB_REPO}/actions/workflows/scrape.yml/dispatches",
+            headers={"Authorization": f"token {_GITHUB_TOKEN}",
+                     "Accept": "application/vnd.github.v3+json"},
+            json={"ref": "master"},
+            timeout=10,
+        )
+        if r.status_code == 204:
+            return jsonify({"ok": True})
+        return jsonify({"error": f"GitHub API error {r.status_code}: {r.text}"}), 502
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 502
+
+
 @app.route("/admin")
 def admin_panel():
     if not session.get("is_admin"):
