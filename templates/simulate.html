@@ -53,10 +53,16 @@
     <div class="section-card">
       <div class="d-flex align-items-center justify-content-between mb-1 flex-wrap gap-2">
         <div class="section-title mb-0">&#128204; My Numbers</div>
-        <button class="btn-search" style="padding:.35rem 1rem;font-size:.78rem" onclick="checkAll()"
-                {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}>
-          &#128269; Check All
-        </button>
+        <div class="d-flex gap-2">
+          <button class="btn-search" style="padding:.35rem 1rem;font-size:.78rem" onclick="checkAll()"
+                  {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}>
+            &#128269; Check All
+          </button>
+          <button class="btn-search" style="padding:.35rem 1rem;font-size:.78rem;background:#1d6fbf" onclick="openEmailModal()"
+                  {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}>
+            &#128231; Send to Email
+          </button>
+        </div>
       </div>
       <p class="section-sub">Checked against ALL prizes in real draws since added.</p>
 
@@ -381,6 +387,48 @@
     renderTable(cachedList, lastResults);
   }
 
+  /* ── Send to Email ── */
+  function openEmailModal() {
+    if (!cachedList.length) { showMsg('No numbers to send.', 'danger'); return; }
+    document.getElementById('email-input').value = '';
+    document.getElementById('email-msg').textContent = '';
+    document.getElementById('email-modal').style.display = 'flex';
+    document.getElementById('email-input').focus();
+  }
+
+  function closeEmailModal() {
+    document.getElementById('email-modal').style.display = 'none';
+  }
+
+  async function sendEmail() {
+    const email = document.getElementById('email-input').value.trim();
+    const msgEl = document.getElementById('email-msg');
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      msgEl.style.color = '#e55'; msgEl.textContent = 'Please enter a valid email address.'; return;
+    }
+    const btn = document.getElementById('send-email-btn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const r = await fetch('/api/my-numbers/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const d = await r.json();
+      if (r.ok) {
+        msgEl.style.color = '#22c55e';
+        msgEl.textContent = `✓ Sent to ${email}`;
+        setTimeout(closeEmailModal, 1800);
+      } else {
+        msgEl.style.color = '#e55'; msgEl.textContent = d.error || 'Send failed.';
+      }
+    } catch {
+      msgEl.style.color = '#e55'; msgEl.textContent = 'Network error.';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send';
+    }
+  }
+
   /* ── Init ── */
   apiGet().then(list => {
     cachedList = list;
@@ -388,5 +436,26 @@
     if (list.length) checkAll();
   });
 </script>
+
+<!-- Email modal -->
+<div id="email-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);
+     z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#1a1f2e;border:1px solid #334;border-radius:12px;padding:1.75rem 2rem;
+              width:min(420px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.6)">
+    <div style="font-size:.72rem;color:#55aacc;font-weight:700;text-transform:uppercase;
+                letter-spacing:.6px;margin-bottom:1rem">Send My Numbers</div>
+    <p style="font-size:.85rem;color:#aabbcc;margin-bottom:1rem">
+      Enter an email address and we'll send your full numbers list with results.
+    </p>
+    <input id="email-input" type="email" placeholder="you@example.com"
+           class="number-input mb-3" style="font-size:.9rem"
+           onkeydown="if(event.key==='Enter')sendEmail()">
+    <div id="email-msg" style="font-size:.8rem;min-height:1.1rem;margin-bottom:.75rem"></div>
+    <div class="d-flex gap-2">
+      <button id="send-email-btn" class="btn-search flex-grow-1" onclick="sendEmail()">Send</button>
+      <button class="btn-clear" onclick="closeEmailModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

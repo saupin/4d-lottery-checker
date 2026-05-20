@@ -1453,6 +1453,82 @@ def api_my_numbers_update():
     return jsonify(data)
 
 
+@app.route("/api/my-numbers/send-email", methods=["POST"])
+@approved_required
+def api_my_numbers_send_email():
+    import re
+    body  = request.get_json(silent=True) or {}
+    email = body.get("email", "").strip()
+
+    if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
+        return jsonify({"error": "Invalid email address"}), 400
+
+    uid     = session["user_id"]
+    entries = _load_user_numbers(uid)
+    if not entries:
+        return jsonify({"error": "No numbers to send"}), 400
+
+    resend_key = os.environ.get("RESEND_API_KEY", "")
+    if not resend_key:
+        return jsonify({"error": "Email service not configured"}), 503
+
+    # Build HTML email
+    lot_labels = {"all": "All", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+    rows_html = ""
+    for t in entries:
+        rows_html += (
+            f"<tr>"
+            f"<td style='padding:.5rem .75rem;font-family:monospace;font-size:1.1rem;font-weight:700'>{t['num']}</td>"
+            f"<td style='padding:.5rem .75rem;font-size:.85rem'>{lot_labels.get(t['lottery'], t['lottery'])}</td>"
+            f"<td style='padding:.5rem .75rem;font-size:.85rem'>{t.get('tries', 10)} draws</td>"
+            f"<td style='padding:.5rem .75rem;font-size:.85rem'>{t.get('date', '')}</td>"
+            f"</tr>"
+        )
+
+    html = f"""<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:2rem">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;
+              box-shadow:0 2px 8px rgba(0,0,0,.1)">
+    <div style="background:#0d1117;padding:1.5rem 2rem">
+      <h2 style="color:#f5c518;margin:0;font-size:1.3rem">&#127922; My 4D Numbers</h2>
+      <p style="color:#8899aa;margin:.4rem 0 0;font-size:.85rem">Tracked by <strong style="color:#fff">{uid}</strong></p>
+    </div>
+    <div style="padding:1.5rem 2rem">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="border-bottom:2px solid #eee">
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Number</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Lottery</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Tries</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Added</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+      <p style="margin-top:1.5rem;font-size:.8rem;color:#aaa">
+        Sent from 4D Lottery Checker &bull; {datetime.utcnow().strftime("%d %b %Y %H:%M")} UTC
+      </p>
+    </div>
+  </div>
+</body></html>"""
+
+    payload = {
+        "from": "4D Lottery Checker <onboarding@resend.dev>",
+        "to": [email],
+        "subject": f"Your 4D Numbers — {uid}",
+        "html": html,
+    }
+    resp = _req.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=10,
+    )
+    if not resp.ok:
+        return jsonify({"error": f"Email API error: {resp.status_code}"}), 502
+    return jsonify({"ok": True})
+
+
 # ── Feedback storage ──────────────────────────────────────────────────────────
 
 def _save_feedback(user_id: str, text: str, analysis: str = "",
