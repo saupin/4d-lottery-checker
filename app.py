@@ -1496,7 +1496,7 @@ def api_my_numbers_send_email():
         return jsonify({"error": "Invalid email address"}), 400
 
     uid     = session["user_id"]
-    entries = _load_user_numbers(uid)
+    entries = body.get("entries") or _load_user_numbers(uid)
     if not entries:
         return jsonify({"error": "No numbers to send"}), 400
 
@@ -1510,39 +1510,44 @@ def api_my_numbers_send_email():
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
-    lot_labels = {"all": "All", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
-    rows_html = ""
+    lot_labels = {"all": "ALL", "damacai": "DA MA CAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+    lot_order  = ["toto", "magnum", "damacai", "all"]
+
+    from collections import defaultdict as _dd
+    grouped = _dd(list)
     for t in entries:
-        rows_html += (
-            f"<tr>"
-            f"<td style='padding:.5rem .75rem;font-family:monospace;font-size:1.1rem;font-weight:700'>{t['num']}</td>"
-            f"<td style='padding:.5rem .75rem;font-size:.85rem'>{lot_labels.get(t['lottery'], t['lottery'])}</td>"
-            f"<td style='padding:.5rem .75rem;font-size:.85rem'>{t.get('tries', 10)} draws</td>"
-            f"<td style='padding:.5rem .75rem;font-size:.85rem'>{t.get('date', '')}</td>"
-            f"</tr>"
+        grouped[t["lottery"]].append(t["num"])
+
+    sections_html = ""
+    for key in lot_order:
+        if key not in grouped:
+            continue
+        label = lot_labels.get(key, key.upper())
+        nums_html = "".join(
+            f"<tr><td style='padding:.3rem 0;font-family:monospace;font-size:1.15rem;font-weight:700;letter-spacing:.05rem'>{n}</td></tr>"
+            for n in grouped[key]
         )
+        sections_html += f"""
+        <tr><td style='padding:1rem 0 .3rem'>
+          <span style='font-size:.95rem;font-weight:700;text-transform:uppercase;
+                       border-bottom:2px solid #f5c518;padding-bottom:.15rem'>{label}</span>
+        </td></tr>
+        {nums_html}
+        <tr><td style='padding:.5rem 0'></td></tr>"""
 
     html = f"""<!DOCTYPE html>
 <html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:2rem">
-  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;
+  <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;
               box-shadow:0 2px 8px rgba(0,0,0,.1)">
     <div style="background:#0d1117;padding:1.5rem 2rem">
       <h2 style="color:#f5c518;margin:0;font-size:1.3rem">&#127922; My 4D Numbers</h2>
       <p style="color:#8899aa;margin:.4rem 0 0;font-size:.85rem">Tracked by <strong style="color:#fff">{uid}</strong></p>
     </div>
-    <div style="padding:1.5rem 2rem">
-      <table style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr style="border-bottom:2px solid #eee">
-            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Number</th>
-            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Lottery</th>
-            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Tries</th>
-            <th style="padding:.5rem .75rem;text-align:left;font-size:.75rem;text-transform:uppercase;color:#888">Added</th>
-          </tr>
-        </thead>
-        <tbody>{rows_html}</tbody>
+    <div style="padding:1.25rem 2rem 1.5rem">
+      <table style="border-collapse:collapse">
+        <tbody>{sections_html}</tbody>
       </table>
-      <p style="margin-top:1.5rem;font-size:.8rem;color:#aaa">
+      <p style="margin-top:1rem;font-size:.8rem;color:#aaa">
         Sent from 4D Lottery Checker &bull; {datetime.utcnow().strftime("%d %b %Y %H:%M")} UTC
       </p>
     </div>

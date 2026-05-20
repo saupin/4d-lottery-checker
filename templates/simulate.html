@@ -423,7 +423,7 @@
       const r = await fetch('/api/my-numbers/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, remember })
+        body: JSON.stringify({ email, remember, entries: cachedList })
       });
       const d = await r.json();
       if (r.ok) {
