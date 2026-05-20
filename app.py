@@ -1572,17 +1572,21 @@ def api_my_numbers_send_email():
         plain_lines.append("")
     plain = "\n".join(plain_lines)
 
+    import email.utils as _eu
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Your 4D Numbers — {uid}"
-    msg["From"]    = f"4D Lottery Checker <{gmail_user}>"
-    msg["To"]      = email
+    msg["Subject"]    = f"Your 4D Numbers — {uid}"
+    msg["From"]       = gmail_user
+    msg["To"]         = email
+    msg["Reply-To"]   = gmail_user
+    msg["Date"]       = _eu.formatdate(localtime=False)
+    msg["Message-ID"] = _eu.make_msgid(domain=gmail_user.split("@")[-1])
     msg.attach(MIMEText(plain, "plain"))
     msg.attach(MIMEText(html, "html"))
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(gmail_user, gmail_pass)
-            smtp.sendmail(gmail_user, email, msg.as_string())
+            smtp.sendmail(gmail_user, [email], msg.as_string())
     except smtplib.SMTPAuthenticationError:
         return jsonify({"error": "Gmail authentication failed — check GMAIL_APP_PASSWORD"}), 502
     except Exception as ex:
