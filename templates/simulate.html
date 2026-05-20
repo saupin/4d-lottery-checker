@@ -388,12 +388,22 @@
   }
 
   /* ── Send to Email ── */
-  function openEmailModal() {
+  async function openEmailModal() {
     if (!cachedList.length) { showMsg('No numbers to send.', 'danger'); return; }
-    document.getElementById('email-input').value = '';
+    const input    = document.getElementById('email-input');
+    const remember = document.getElementById('email-remember');
+    input.value = '';
+    remember.checked = false;
     document.getElementById('email-msg').textContent = '';
     document.getElementById('email-modal').style.display = 'flex';
-    document.getElementById('email-input').focus();
+    try {
+      const r = await fetch('/api/my-numbers/remembered-email');
+      if (r.ok) {
+        const d = await r.json();
+        if (d.email) { input.value = d.email; remember.checked = true; }
+      }
+    } catch { /* ignore — leave field empty */ }
+    input.focus();
   }
 
   function closeEmailModal() {
@@ -401,8 +411,9 @@
   }
 
   async function sendEmail() {
-    const email = document.getElementById('email-input').value.trim();
-    const msgEl = document.getElementById('email-msg');
+    const email    = document.getElementById('email-input').value.trim();
+    const remember = document.getElementById('email-remember').checked;
+    const msgEl    = document.getElementById('email-msg');
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       msgEl.style.color = '#e55'; msgEl.textContent = 'Please enter a valid email address.'; return;
     }
@@ -412,7 +423,7 @@
       const r = await fetch('/api/my-numbers/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, remember })
       });
       const d = await r.json();
       if (r.ok) {
@@ -450,6 +461,11 @@
     <input id="email-input" type="email" placeholder="you@example.com"
            class="number-input mb-3" style="font-size:.9rem"
            onkeydown="if(event.key==='Enter')sendEmail()">
+    <label for="email-remember" style="display:flex;align-items:center;gap:.5rem;
+           font-size:.82rem;color:#aabbcc;margin-bottom:.75rem;cursor:pointer">
+      <input id="email-remember" type="checkbox" style="cursor:pointer">
+      Remember my email
+    </label>
     <div id="email-msg" style="font-size:.8rem;min-height:1.1rem;margin-bottom:.75rem"></div>
     <div class="d-flex gap-2">
       <button id="send-email-btn" class="btn-search flex-grow-1" onclick="sendEmail()">Send</button>

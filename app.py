@@ -137,6 +137,31 @@ def _update_user_password(username: str, pw_hash: str) -> None:
         _users_local_save(users)
 
 
+def _get_remembered_email(username: str) -> str:
+    u = _get_user(username) or {}
+    return (u.get("remembered_email") or "").strip()
+
+
+def _set_remembered_email(username: str, email: str) -> None:
+    username = username.lower().strip()
+    email    = (email or "").strip()
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.patch(f"{_SB_URL}/rest/v1/users_store?id=eq.{username}",
+                       headers={**_sb_headers(), "Prefer": "return=minimal"},
+                       json={"remembered_email": email or None}, timeout=5)
+        except Exception:
+            pass
+        return
+    users = _users_local()
+    if username in users:
+        if email:
+            users[username]["remembered_email"] = email
+        else:
+            users[username].pop("remembered_email", None)
+        _users_local_save(users)
+
+
 def _list_users() -> list:
     if _SB_URL and _SB_KEY:
         try:
@@ -1453,12 +1478,19 @@ def api_my_numbers_update():
     return jsonify(data)
 
 
+@app.route("/api/my-numbers/remembered-email", methods=["GET"])
+@approved_required
+def api_my_numbers_remembered_email():
+    return jsonify({"email": _get_remembered_email(session["user_id"])})
+
+
 @app.route("/api/my-numbers/send-email", methods=["POST"])
 @approved_required
 def api_my_numbers_send_email():
     import re
-    body  = request.get_json(silent=True) or {}
-    email = body.get("email", "").strip()
+    body     = request.get_json(silent=True) or {}
+    email    = body.get("email", "").strip()
+    remember = bool(body.get("remember", False))
 
     if not re.match(r"^[^\s@]+@[^\s@]+\.[^\s@]+$", email):
         return jsonify({"error": "Invalid email address"}), 400
@@ -1526,6 +1558,8 @@ def api_my_numbers_send_email():
     )
     if not resp.ok:
         return jsonify({"error": f"Email API error: {resp.status_code}"}), 502
+
+    _set_remembered_email(uid, email if remember else "")
     return jsonify({"ok": True})
 
 
