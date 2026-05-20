@@ -5,12 +5,8 @@ import urllib.request
 e = os.environ
 claude_outcome = e.get("CLAUDE_OUTCOME", "")
 merge_outcome  = e.get("MERGE_OUTCOME", "")
+run_url        = e.get("RUN_URL", "")
 
-# Determine overall result:
-# - merge succeeded  → ✅ deployed
-# - claude failed    → ❌ claude error
-# - merge failed     → ❌ merge/push error
-# - merge skipped (claude ok but no branch / already merged) → ℹ️ nothing to deploy
 if merge_outcome == "success":
     icon   = "✅"
     status = "Merged to master — deploying"
@@ -24,11 +20,15 @@ else:
     icon   = "ℹ️"
     status = "Claude ran but nothing new to merge"
 
-text = (
-    f"{icon} {status}\n"
-    f"#{e.get('ISSUE_NUM', '?')}: {e.get('ISSUE_TITLE', '')}\n"
-    f"{e.get('ISSUE_URL', '')}"
-)
+lines = [
+    f"{icon} {status}",
+    f"#{e.get('ISSUE_NUM', '?')}: {e.get('ISSUE_TITLE', '')}",
+    e.get("ISSUE_URL", ""),
+]
+if run_url:
+    lines.append(f"Run: {run_url}")
+
+text = "\n".join(l for l in lines if l)
 
 payload = json.dumps({
     "chat_id": e["TG_CHAT"],
@@ -41,4 +41,10 @@ req = urllib.request.Request(
     data=payload,
     headers={"Content-Type": "application/json"},
 )
-urllib.request.urlopen(req)
+with urllib.request.urlopen(req) as resp:
+    result = json.loads(resp.read())
+
+if not result.get("ok"):
+    raise RuntimeError(f"Telegram API error: {result}")
+
+print("Telegram notification sent.")
