@@ -415,6 +415,8 @@
     <a href="/payouts" class="nav-link {% if active_page == 'payouts' %}active{% endif %}">Payouts</a>
     {% if session.get('user_id') %}
     <a href="/feedback" class="nav-link {% if active_page == 'feedback' %}active{% endif %}">Feedback</a>
+    {% else %}
+    <span class="nav-link" style="opacity:.4;cursor:not-allowed" title="Only Logged-in users are allowed to use this function.">Feedback</span>
     {% endif %}
     <div class="ms-auto d-flex align-items-center gap-1">
       {% if session.get('user_id') %}
