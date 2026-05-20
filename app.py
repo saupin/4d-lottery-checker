@@ -1510,30 +1510,39 @@ def api_my_numbers_send_email():
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
-    lot_labels = {"all": "SPORTSTOTO / MAGNUM / DAMACAI", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
-    lot_order  = ["toto", "magnum", "damacai", "all"]
+    lot_labels = {"damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+    lot_order  = ["toto", "magnum", "damacai"]
 
     from collections import defaultdict as _dd
     grouped = _dd(list)
     for t in entries:
-        grouped[t["lottery"]].append(t["num"])
+        lottery = t["lottery"]
+        num = t["num"]
+        if lottery == "all":
+            grouped["toto"].append(num)
+            grouped["magnum"].append(num)
+            grouped["damacai"].append(num)
+        else:
+            grouped[lottery].append(num)
 
-    sections_html = ""
-    for key in lot_order:
-        if key not in grouped:
-            continue
-        label = lot_labels.get(key, key.upper())
+    def _section(label, nums):
         nums_html = "".join(
             f"<tr><td style='padding:.3rem 0;font-family:monospace;font-size:1.15rem;font-weight:700;letter-spacing:.05rem'>{n}</td></tr>"
-            for n in grouped[key]
+            for n in nums
         )
-        sections_html += f"""
+        return f"""
         <tr><td style='padding:1rem 0 .3rem'>
           <span style='font-size:.95rem;font-weight:700;text-transform:uppercase;
                        border-bottom:2px solid #f5c518;padding-bottom:.15rem'>{label}</span>
         </td></tr>
         {nums_html}
         <tr><td style='padding:.5rem 0'></td></tr>"""
+
+    sections_html = ""
+    for key in lot_order:
+        if key not in grouped:
+            continue
+        sections_html += _section(lot_labels[key], grouped[key])
 
     html = f"""<!DOCTYPE html>
 <html><body style="font-family:Arial,sans-serif;background:#f4f4f4;padding:2rem">
@@ -1558,7 +1567,7 @@ def api_my_numbers_send_email():
     for key in lot_order:
         if key not in grouped:
             continue
-        plain_lines.append(lot_labels.get(key, key.upper()))
+        plain_lines.append(lot_labels[key])
         plain_lines.extend(grouped[key])
         plain_lines.append("")
     plain = "\n".join(plain_lines)
