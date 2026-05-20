@@ -1500,11 +1500,16 @@ def api_my_numbers_send_email():
     if not entries:
         return jsonify({"error": "No numbers to send"}), 400
 
-    resend_key = os.environ.get("RESEND_API_KEY", "")
-    if not resend_key:
+    gmail_user = os.environ.get("GMAIL_USER", "")
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
+    if not gmail_user or not gmail_pass:
         return jsonify({"error": "Email service not configured"}), 503
 
     # Build HTML email
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
+
     lot_labels = {"all": "All", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
     rows_html = ""
     for t in entries:
@@ -1544,20 +1549,20 @@ def api_my_numbers_send_email():
   </div>
 </body></html>"""
 
-    payload = {
-        "from": "4D Lottery Checker <onboarding@resend.dev>",
-        "to": [email],
-        "subject": f"Your 4D Numbers — {uid}",
-        "html": html,
-    }
-    resp = _req.post(
-        "https://api.resend.com/emails",
-        headers={"Authorization": f"Bearer {resend_key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=10,
-    )
-    if not resp.ok:
-        return jsonify({"error": f"Email API error: {resp.status_code}"}), 502
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"Your 4D Numbers — {uid}"
+    msg["From"]    = f"4D Lottery Checker <{gmail_user}>"
+    msg["To"]      = email
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(gmail_user, gmail_pass)
+            smtp.sendmail(gmail_user, email, msg.as_string())
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({"error": "Gmail authentication failed — check GMAIL_APP_PASSWORD"}), 502
+    except Exception as ex:
+        return jsonify({"error": f"Failed to send email: {ex}"}), 502
 
     _set_remembered_email(uid, email if remember else "")
     return jsonify({"ok": True})
