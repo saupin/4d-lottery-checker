@@ -412,10 +412,10 @@
     <span class="nav-link" style="opacity:.4;cursor:not-allowed" title="Only Logged-in users are allowed to use this function.">Simulation</span>
     {% endif %}
     <a href="/dream" class="nav-link {% if active_page == 'dream' %}active{% endif %}">Dream</a>
+    <a href="/payouts" class="nav-link {% if active_page == 'payouts' %}active{% endif %}">Payouts</a>
     {% if session.get('user_id') %}
     <a href="/feedback" class="nav-link {% if active_page == 'feedback' %}active{% endif %}">Feedback</a>
     {% endif %}
-    <a href="/payouts" class="nav-link {% if active_page == 'payouts' %}active{% endif %}">Payouts</a>
     <div class="ms-auto d-flex align-items-center gap-1">
       {% if session.get('user_id') %}
         <span style="font-size:.75rem;color:#55aacc;padding:.35rem .5rem">&#128100; {{ session['user_id'] }}</span>
