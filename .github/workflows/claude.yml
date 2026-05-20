@@ -39,6 +39,7 @@ jobs:
         if: steps.claude.outcome == 'success'
         env:
           ISSUE_NUM: ${{ github.event.issue.number }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -e
           git fetch origin
@@ -55,6 +56,7 @@ jobs:
           echo "Merging $BRANCH into master"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
           git checkout -B master origin/master
           git merge "origin/$BRANCH" --no-edit
           git push origin master
