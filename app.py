@@ -1537,6 +1537,40 @@ def admin_backtest_run():
         return jsonify({"error": str(ex)}), 500
 
 
+@app.route("/admin/generate-predictions", methods=["POST"])
+def admin_generate_predictions():
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 403
+    try:
+        data      = load_results()
+        last_draw = max(data.keys()) if data else ""
+        generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        for lot_key, lot_val in LOTTERY_KEYS.items():
+            ranked = _boosted_ranked_scores(data, lot_val)
+            nums = [
+                {
+                    "num":           r["num"],
+                    "rank":          r.get("rank", 0),
+                    "score_pct":     r.get("score_pct", 0),
+                    "percentile":    r.get("percentile", 0),
+                    "colour":        r.get("colour", "#888"),
+                    "label":         r.get("label", ""),
+                    "count":         r.get("count", 0),
+                    "last_seen_fmt": r.get("last_seen_fmt", "Never"),
+                }
+                for r in ranked[:250]
+            ]
+            payload = {"based_on": last_draw, "generated_at": generated_at, "nums": nums}
+            if _SB_URL and _SB_KEY:
+                _req.post(f"{_SB_URL}/rest/v1/latest_predictions",
+                          headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
+                          json={"id": lot_key, "data": json.dumps(payload, ensure_ascii=False)},
+                          timeout=10)
+        return jsonify({"ok": True, "based_on": last_draw, "generated_at": generated_at})
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
+
+
 @app.route("/admin/trigger-scraper", methods=["POST"])
 def admin_trigger_scraper():
     if not session.get("is_admin"):

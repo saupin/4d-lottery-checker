@@ -21,6 +21,11 @@
       <div class="d-flex align-items-center justify-content-between mb-3">
         <div class="section-title mb-0">Users ({{ users|length }})</div>
         <div class="d-flex gap-3 align-items-center">
+          <button id="predict-btn" onclick="generatePredictions()"
+                  style="background:none;border:1px solid #55aacc;color:#55aacc;border-radius:5px;
+                         padding:.2rem .65rem;font-size:.78rem;cursor:pointer;transition:all .15s">
+            &#128302; Gen Predictions
+          </button>
           <button id="scraper-btn" onclick="triggerScraper()"
                   style="background:none;border:1px solid #22c55e;color:#22c55e;border-radius:5px;
                          padding:.2rem .65rem;font-size:.78rem;cursor:pointer;transition:all .15s">
@@ -93,6 +98,22 @@
 </div>
 
 <script>
+async function generatePredictions() {
+  const btn = document.getElementById('predict-btn');
+  btn.disabled = true; btn.textContent = 'Generating…';
+  try {
+    const r = await fetch('/admin/generate-predictions', { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      btn.textContent = '✓ Done (' + d.based_on + ')';
+      btn.style.borderColor = '#22c55e'; btn.style.color = '#22c55e';
+    } else {
+      btn.textContent = '✗ Failed'; btn.style.borderColor = '#e55'; btn.style.color = '#e55';
+      alert(d.error || 'Failed');
+    }
+  } catch { btn.textContent = '✗ Error'; }
+}
+
 async function triggerScraper() {
   const btn = document.getElementById('scraper-btn');
   btn.disabled = true;
