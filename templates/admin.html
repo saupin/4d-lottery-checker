@@ -95,9 +95,101 @@
       {% endif %}
     </div>
   </div>
+
+  {% if pred_summary %}
+  <!-- Prediction vs Last Draw -->
+  <div class="col-lg-7 mt-4">
+    <div class="section-card">
+      <div class="section-title mb-1">&#128302; Predictions vs Last Draw</div>
+      <div style="font-size:.72rem;color:#55667a;margin-bottom:1rem">
+        Predictions based on <strong style="color:#8899aa">{{ pred_summary[0].based_on }}</strong>
+        draw &mdash; tested against <strong style="color:#f5c518">{{ pred_summary[0].draw_date }}</strong>
+        &mdash; {{ pred_summary[0].gen_at }}
+      </div>
+
+      <!-- Summary cards -->
+      <div class="d-flex gap-3 flex-wrap mb-3">
+        {% for row in pred_summary %}
+        <div style="flex:1;min-width:120px;background:#0d1117;border:1px solid #2a3a4a;
+                    border-radius:8px;padding:.75rem 1rem;text-align:center">
+          <div style="font-size:.65rem;color:#55aacc;font-weight:700;text-transform:uppercase;
+                      letter-spacing:.5px;margin-bottom:.3rem">{{ row.label }}</div>
+          <div style="font-size:1.6rem;font-weight:700;
+                      color:{% if row.total_hits > 0 %}#22c55e{% else %}#55667a{% endif %};line-height:1">
+            {{ row.total_hits }}
+          </div>
+          <div style="font-size:.65rem;color:#8899aa">hits / {{ row.top_n }} predicted</div>
+          <div style="font-size:.75rem;font-weight:700;margin-top:.25rem;
+                      color:{% if row.total_hits > 0 %}#f5c518{% else %}#55667a{% endif %}">
+            {{ row.match_pct }}%
+          </div>
+          {% if row.hits_top3 %}
+          <div style="font-size:.62rem;color:#f5c518;margin-top:.2rem">
+            Top-3: {{ row.hits_top3 | join(', ') }}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Top 20 per lottery with hit highlights -->
+      <ul class="nav mb-2" id="predTabs" style="gap:.3rem">
+        {% for row in pred_summary %}
+        <li>
+          <a href="#" onclick="showPredTab('{{ row.lot_key }}'); return false"
+             id="ptab-lnk-{{ row.lot_key }}"
+             style="font-size:.72rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none;
+                    background:{% if loop.first %}#1d3a5a{% else %}#0d1117{% endif %};
+                    color:{% if loop.first %}#55aacc{% else %}#55667a{% endif %};
+                    border:1px solid {% if loop.first %}#2a5a8a{% else %}#2a3a4a{% endif %}">
+            {{ row.label }}
+            {% if row.hits_top3 %}<span style="color:#f5c518">●</span>{% endif %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+
+      {% for row in pred_summary %}
+      <div id="predtab-{{ row.lot_key }}" class="pred-tab"
+           style="display:{% if loop.first %}block{% else %}none{% endif %}">
+        <div class="d-flex flex-wrap gap-1">
+          {% set all_hits = (row.hits_top3 + row.hits_spec + row.hits_cons) %}
+          {% for num in row.top20 %}
+          {% set is_top3 = num in row.hits_top3 %}
+          {% set is_hit  = num in all_hits %}
+          <span style="font-family:monospace;font-size:.88rem;font-weight:700;
+                       padding:.2rem .45rem;border-radius:4px;
+                       {% if is_top3 %}background:#3a2a00;border:1px solid #f5c518;color:#f5c518;
+                       {% elif is_hit %}background:#0a2a0a;border:1px solid #22c55e;color:#22c55e;
+                       {% else %}background:#0d1117;border:1px solid #2a3a4a;color:#55667a;{% endif %}">
+            {{ num }}
+          </span>
+          {% endfor %}
+        </div>
+        <div style="font-size:.65rem;color:#55667a;margin-top:.5rem">
+          <span style="color:#f5c518">&#9646;</span> Top-3 hit &nbsp;
+          <span style="color:#22c55e">&#9646;</span> Special/Consolation hit &nbsp;
+          <span style="color:#2a3a4a">&#9646;</span> No hit
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 
 <script>
+function showPredTab(key) {
+  document.querySelectorAll('.pred-tab').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('#predTabs a').forEach(a => {
+    a.style.background = '#0d1117'; a.style.color = '#55667a'; a.style.borderColor = '#2a3a4a';
+  });
+  document.getElementById('predtab-' + key).style.display = 'block';
+  const lnk = document.getElementById('ptab-lnk-' + key);
+  lnk.style.background = '#1d3a5a'; lnk.style.color = '#55aacc'; lnk.style.borderColor = '#2a5a8a';
+}
+
 async function generatePredictions() {
   const btn = document.getElementById('predict-btn');
   btn.disabled = true; btn.textContent = 'Generating…';

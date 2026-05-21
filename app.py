@@ -1592,12 +1592,79 @@ def admin_trigger_scraper():
         return jsonify({"error": str(ex)}), 502
 
 
+def _prediction_vs_last_draw() -> list[dict]:
+    """Compare stored predictions against the most recent draw for each lottery."""
+    stored = _load_stored_predictions()
+    if not stored:
+        return []
+    data = load_results()
+    if not data:
+        return []
+    last_date = max(data.keys())
+    day       = data[last_date]
+
+    lot_map = [
+        ("all",     LOTTERY_ORDER,  "All Lotteries"),
+        ("damacai", ["damacai"],    "DAMACAI"),
+        ("magnum",  ["magnum"],     "MAGNUM"),
+        ("toto",    ["toto"],       "SPORTSTOTO"),
+    ]
+
+    rows = []
+    for lot_key, check_keys, label in lot_map:
+        pred = stored.get(lot_key)
+        if not pred:
+            continue
+        top_nums = [e["num"] for e in pred["nums"][:250]]
+        top_set  = set(top_nums)
+        based_on = pred.get("based_on", "")
+        gen_at   = pred.get("generated_at", "")
+
+        hits_top3 = []; hits_spec = []; hits_cons = []
+        for key in check_keys:
+            lot = day.get(key)
+            if not lot:
+                continue
+            p = lot.get("prizes", {})
+            for t in ["1st", "2nd", "3rd"]:
+                n = p.get(t)
+                if n and n in top_set:
+                    hits_top3.append(n)
+            for n in (p.get("special") or []):
+                if n in top_set:
+                    hits_spec.append(n)
+            for n in (p.get("consolation") or []):
+                if n in top_set:
+                    hits_cons.append(n)
+
+        total_hits  = len(hits_top3) + len(hits_spec) + len(hits_cons)
+        match_pct   = round(total_hits / len(top_nums) * 100, 1) if top_nums else 0
+
+        rows.append({
+            "label":      label,
+            "lot_key":    lot_key,
+            "based_on":   based_on,
+            "gen_at":     gen_at,
+            "draw_date":  last_date,
+            "top_n":      len(top_nums),
+            "hits_top3":  hits_top3,
+            "hits_spec":  hits_spec,
+            "hits_cons":  hits_cons,
+            "total_hits": total_hits,
+            "match_pct":  match_pct,
+            "top20":      top_nums[:20],
+        })
+    return rows
+
+
 @app.route("/admin")
 def admin_panel():
     if not session.get("is_admin"):
         return redirect(url_for("login_page", next="/admin"))
-    reset_msg = session.pop("reset_msg", None)
-    return render_template("admin.html", users=_list_users(), active_page=None, reset_msg=reset_msg)
+    reset_msg    = session.pop("reset_msg", None)
+    pred_summary = _prediction_vs_last_draw()
+    return render_template("admin.html", users=_list_users(), active_page=None,
+                           reset_msg=reset_msg, pred_summary=pred_summary)
 
 
 @app.route("/admin/approve/<username>", methods=["POST"])
