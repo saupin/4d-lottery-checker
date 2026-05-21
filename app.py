@@ -1324,14 +1324,18 @@ def admin_test_analysis():
                     "analysis": analysis, "analysis_ok": bool(analysis)})
 
 
-BACKTEST_TRAIN_CUTOFF = "2025-01-01"
-BACKTEST_TOP_N        = 20
+BACKTEST_TOP_N = 20
 
-def _run_backtest() -> dict:
+def _run_backtest(train_from: str = "2014-01-01", train_to: str = "2024-12-31") -> dict:
     global _backtest_cache
     data       = load_results()
-    train_data = {d: v for d, v in data.items() if d < BACKTEST_TRAIN_CUTOFF}
-    test_data  = {d: v for d, v in data.items() if d >= BACKTEST_TRAIN_CUTOFF}
+    all_dates  = sorted(data.keys())
+    # Clamp inputs to available dates
+    train_from = max(train_from, all_dates[0])
+    train_to   = min(train_to,   all_dates[-1])
+    # Test starts from the first draw AFTER train_to
+    train_data = {d: v for d, v in data.items() if train_from <= d <= train_to}
+    test_data  = {d: v for d, v in data.items() if d > train_to}
     if not train_data or not test_data:
         return {}
 
@@ -1404,10 +1408,10 @@ def _run_backtest() -> dict:
         }
 
     result = {
-        "train_from": min(train_data.keys()),
-        "train_to":   max(train_data.keys()),
-        "test_from":  min(test_data.keys()),
-        "test_to":    max(test_data.keys()),
+        "train_from": min(train_data.keys()) if train_data else train_from,
+        "train_to":   max(train_data.keys()) if train_data else train_to,
+        "test_from":  min(test_data.keys())  if test_data  else "",
+        "test_to":    max(test_data.keys())  if test_data  else "",
         "n_train":    len(train_data),
         "run_at":     datetime.utcnow().strftime("%d %b %Y %H:%M UTC"),
         "summary":    summary,
@@ -1448,8 +1452,11 @@ def admin_backtest():
 def admin_backtest_run():
     if not session.get("is_admin"):
         return jsonify({"error": "Unauthorized"}), 403
+    body       = request.get_json(silent=True) or {}
+    train_from = body.get("train_from", "2014-01-01").strip()
+    train_to   = body.get("train_to",   "2024-12-31").strip()
     try:
-        result = _run_backtest()
+        result = _run_backtest(train_from, train_to)
         return jsonify({"ok": True, "run_at": result.get("run_at", "")})
     except Exception as ex:
         return jsonify({"error": str(ex)}), 500

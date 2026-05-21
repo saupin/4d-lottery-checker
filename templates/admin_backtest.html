@@ -12,22 +12,34 @@
 
   <!-- Controls -->
   <div class="section-card mb-4" style="padding:1rem 1.5rem">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
-      <div style="font-size:.82rem;color:#8899aa">
-        {% if results %}
-          <strong style="color:#f5c518">Training:</strong> {{ results.train_from }} — {{ results.train_to }}
-          &nbsp;({{ results.n_train }} draws) &nbsp;|&nbsp;
-          <strong style="color:#f5c518">Test:</strong> {{ results.test_from }} — {{ results.test_to }}
-          &nbsp;|&nbsp; Run: <span style="color:#aaa">{{ results.run_at }}</span>
-        {% else %}
-          No backtest results yet. Click Run to compute.
-        {% endif %}
+    <div class="d-flex align-items-center flex-wrap gap-3">
+      <div>
+        <label style="font-size:.7rem;color:#8899aa;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:.2rem">Training From</label>
+        <input type="date" id="train-from" value="{{ results.train_from if results else '2014-01-01' }}"
+               style="background:#0d1117;border:1px solid #2a3a4a;color:#ccc;border-radius:4px;
+                      padding:.25rem .5rem;font-size:.82rem">
       </div>
-      <button id="run-btn" onclick="runBacktest()"
-              style="background:none;border:1px solid #f5c518;color:#f5c518;border-radius:5px;
-                     padding:.3rem .9rem;font-size:.8rem;cursor:pointer;transition:all .15s">
-        &#9654; Run Backtest
-      </button>
+      <div>
+        <label style="font-size:.7rem;color:#8899aa;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:.2rem">Training To</label>
+        <input type="date" id="train-to" value="{{ results.train_to if results else '2024-12-31' }}"
+               style="background:#0d1117;border:1px solid #2a3a4a;color:#ccc;border-radius:4px;
+                      padding:.25rem .5rem;font-size:.82rem">
+      </div>
+      <div style="align-self:flex-end">
+        <button id="run-btn" onclick="runBacktest()"
+                style="background:none;border:1px solid #f5c518;color:#f5c518;border-radius:5px;
+                       padding:.3rem .9rem;font-size:.8rem;cursor:pointer;transition:all .15s">
+          &#9654; Run Backtest
+        </button>
+      </div>
+      {% if results %}
+      <div style="font-size:.75rem;color:#55667a;align-self:flex-end;padding-bottom:.1rem">
+        Test: <strong style="color:#8899aa">{{ results.test_from }}</strong> —
+        <strong style="color:#8899aa">{{ results.test_to }}</strong>
+        &nbsp;({{ results.summary.all.n_draws }} draws) &nbsp;|&nbsp;
+        {{ results.run_at }}
+      </div>
+      {% endif %}
     </div>
   </div>
 
@@ -171,11 +183,21 @@ function showTab(key) {
 }
 
 async function runBacktest() {
+  const trainFrom = document.getElementById('train-from').value;
+  const trainTo   = document.getElementById('train-to').value;
+  if (!trainFrom || !trainTo || trainFrom >= trainTo) {
+    alert('Training "From" date must be before "To" date.');
+    return;
+  }
   const btn = document.getElementById('run-btn');
   btn.disabled = true;
   btn.textContent = 'Running… (this takes ~10s)';
   try {
-    const r = await fetch('/admin/backtest/run', { method: 'POST' });
+    const r = await fetch('/admin/backtest/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ train_from: trainFrom, train_to: trainTo })
+    });
     const d = await r.json();
     if (r.ok) {
       btn.textContent = 'Done — reloading…';
