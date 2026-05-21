@@ -113,19 +113,34 @@
         <div style="flex:1;min-width:120px;background:#0d1117;border:1px solid #2a3a4a;
                     border-radius:8px;padding:.75rem 1rem;text-align:center">
           <div style="font-size:.65rem;color:#55aacc;font-weight:700;text-transform:uppercase;
-                      letter-spacing:.5px;margin-bottom:.3rem">{{ row.label }}</div>
-          <div style="font-size:1.6rem;font-weight:700;
-                      color:{% if row.total_hits > 0 %}#22c55e{% else %}#55667a{% endif %};line-height:1">
+                      letter-spacing:.5px;margin-bottom:.5rem">{{ row.label }}</div>
+          <div style="font-size:.68rem;color:#8899aa;margin-bottom:.15rem">Predicted numbers</div>
+          <div style="font-size:1.1rem;font-weight:700;color:#ccc">{{ row.top_n }}</div>
+
+          <div style="border-top:1px solid #1a2a3a;margin:.5rem 0"></div>
+
+          <div style="font-size:.68rem;color:#8899aa;margin-bottom:.15rem">Matched in draw</div>
+          <div style="font-size:1.6rem;font-weight:700;line-height:1;
+                      color:{% if row.total_hits > 0 %}#22c55e{% else %}#55667a{% endif %}">
             {{ row.total_hits }}
           </div>
-          <div style="font-size:.65rem;color:#8899aa">hits / {{ row.top_n }} predicted</div>
-          <div style="font-size:.75rem;font-weight:700;margin-top:.25rem;
-                      color:{% if row.total_hits > 0 %}#f5c518{% else %}#55667a{% endif %}">
-            {{ row.match_pct }}%
+          <div style="font-size:.65rem;color:#8899aa;margin-top:.1rem">
+            numbers appeared in the draw
           </div>
+
+          <div style="font-size:1rem;font-weight:700;margin-top:.4rem;
+                      color:{% if row.total_hits > 0 %}#f5c518{% else %}#55667a{% endif %}">
+            {{ row.match_pct }}% hit rate
+          </div>
+
           {% if row.hits_top3 %}
-          <div style="font-size:.62rem;color:#f5c518;margin-top:.2rem">
-            Top-3: {{ row.hits_top3 | join(', ') }}
+          <div style="font-size:.65rem;color:#f5c518;margin-top:.3rem;font-weight:700">
+            &#127942; 1st/2nd/3rd: {{ row.hits_top3 | join(', ') }}
+          </div>
+          {% endif %}
+          {% if row.hits_spec or row.hits_cons %}
+          <div style="font-size:.65rem;color:#22c55e;margin-top:.2rem">
+            &#10003; Special/Cons: {{ (row.hits_spec + row.hits_cons) | join(', ') }}
           </div>
           {% endif %}
         </div>
@@ -166,10 +181,10 @@
           </span>
           {% endfor %}
         </div>
-        <div style="font-size:.65rem;color:#55667a;margin-top:.5rem">
-          <span style="color:#f5c518">&#9646;</span> Top-3 hit &nbsp;
-          <span style="color:#22c55e">&#9646;</span> Special/Consolation hit &nbsp;
-          <span style="color:#2a3a4a">&#9646;</span> No hit
+        <div style="font-size:.68rem;color:#55667a;margin-top:.6rem;display:flex;gap:1rem;flex-wrap:wrap">
+          <span><span style="color:#f5c518;font-weight:700">0000</span> &nbsp;Won 1st / 2nd / 3rd prize</span>
+          <span><span style="color:#22c55e;font-weight:700">0000</span> &nbsp;Won Special or Consolation</span>
+          <span><span style="color:#334;font-weight:700">0000</span> &nbsp;Did not appear in draw</span>
         </div>
       </div>
       {% endfor %}
