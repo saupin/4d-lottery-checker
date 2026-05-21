@@ -508,6 +508,8 @@ def _get_predict_cache() -> dict:
 
 _analysis_cache: dict | None = None
 _analysis_cache_mtime: float = 0.0
+_backtest_cache: dict | None = None
+
 
 def _get_analysis_cache() -> dict:
     global _analysis_cache, _analysis_cache_mtime
@@ -1320,6 +1322,137 @@ def admin_test_analysis():
     analysis = _analyse_feedback("test_user", "The prediction scores seem off for DAMACAI.")
     return jsonify({"anthropic_key_set": bool(_ANTHROPIC_KEY),
                     "analysis": analysis, "analysis_ok": bool(analysis)})
+
+
+BACKTEST_TRAIN_CUTOFF = "2025-01-01"
+BACKTEST_TOP_N        = 20
+
+def _run_backtest() -> dict:
+    global _backtest_cache
+    data       = load_results()
+    train_data = {d: v for d, v in data.items() if d < BACKTEST_TRAIN_CUTOFF}
+    test_data  = {d: v for d, v in data.items() if d >= BACKTEST_TRAIN_CUTOFF}
+    if not train_data or not test_data:
+        return {}
+
+    lot_map = [
+        ("all",     None,       LOTTERY_ORDER),
+        ("damacai", "damacai",  ["damacai"]),
+        ("magnum",  "magnum",   ["magnum"]),
+        ("toto",    "toto",     ["toto"]),
+    ]
+    lot_labels_bt = {"all": "All Lotteries", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+
+    summary = {}
+    for lot_key, lot_val, check_keys in lot_map:
+        model  = build_prediction_model(train_data, lot_val)
+        ranked = get_ranked_scores(model)
+        top20  = [r["num"] for r in ranked[:BACKTEST_TOP_N]]
+        top20s = set(top20)
+
+        draw_rows = []
+        for draw_date in sorted(test_data.keys()):
+            day = test_data[draw_date]
+            has_lot = any(day.get(k) for k in check_keys)
+            if not has_lot:
+                continue
+
+            hit_top3  = []
+            hit_spec  = []
+            hit_cons  = []
+            actuals   = {}
+            for key in check_keys:
+                lot = day.get(key)
+                if not lot:
+                    continue
+                p = lot.get("prizes", {})
+                for t in ["1st", "2nd", "3rd"]:
+                    n = p.get(t)
+                    if n:
+                        actuals[t] = actuals.get(t) or n
+                        if n in top20s:
+                            hit_top3.append(n)
+                for n in (p.get("special") or []):
+                    if n in top20s:
+                        hit_spec.append(n)
+                for n in (p.get("consolation") or []):
+                    if n in top20s:
+                        hit_cons.append(n)
+
+            draw_rows.append({
+                "date":       draw_date,
+                "actuals":    actuals,
+                "hit_top3":   hit_top3,
+                "hit_spec":   hit_spec,
+                "hit_cons":   hit_cons,
+                "total_hits": len(hit_top3) + len(hit_spec) + len(hit_cons),
+            })
+
+        n_draws    = len(draw_rows)
+        n_hit      = sum(1 for r in draw_rows if r["total_hits"] > 0)
+        n_top3_hit = sum(1 for r in draw_rows if r["hit_top3"])
+        summary[lot_key] = {
+            "label":       lot_labels_bt[lot_key],
+            "top20":       top20,
+            "n_draws":     n_draws,
+            "n_hit":       n_hit,
+            "n_top3_hit":  n_top3_hit,
+            "hit_rate":    round(n_hit / n_draws * 100, 1) if n_draws else 0,
+            "top3_rate":   round(n_top3_hit / n_draws * 100, 1) if n_draws else 0,
+            "total_hits":  sum(r["total_hits"] for r in draw_rows),
+            "draws":       draw_rows,
+        }
+
+    result = {
+        "train_from": min(train_data.keys()),
+        "train_to":   max(train_data.keys()),
+        "test_from":  min(test_data.keys()),
+        "test_to":    max(test_data.keys()),
+        "n_train":    len(train_data),
+        "run_at":     datetime.utcnow().strftime("%d %b %Y %H:%M UTC"),
+        "summary":    summary,
+    }
+    _backtest_cache = result
+    # Persist to Supabase if available
+    if _SB_URL and _SB_KEY:
+        try:
+            _req.post(f"{_SB_URL}/rest/v1/backtest_cache",
+                      headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
+                      json={"id": "latest", "data": json.dumps(result, ensure_ascii=False)},
+                      timeout=10)
+        except Exception:
+            pass
+    return result
+
+
+@app.route("/admin/backtest")
+def admin_backtest():
+    if not session.get("is_admin"):
+        return redirect(url_for("login_page"))
+    global _backtest_cache
+    results = _backtest_cache
+    if results is None and _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/backtest_cache?id=eq.latest&select=data",
+                         headers=_sb_headers(), timeout=5)
+            rows = r.json()
+            if rows:
+                results = json.loads(rows[0]["data"])
+                _backtest_cache = results
+        except Exception:
+            pass
+    return render_template("admin_backtest.html", results=results, active_page="admin")
+
+
+@app.route("/admin/backtest/run", methods=["POST"])
+def admin_backtest_run():
+    if not session.get("is_admin"):
+        return jsonify({"error": "Unauthorized"}), 403
+    try:
+        result = _run_backtest()
+        return jsonify({"ok": True, "run_at": result.get("run_at", "")})
+    except Exception as ex:
+        return jsonify({"error": str(ex)}), 500
 
 
 @app.route("/admin/trigger-scraper", methods=["POST"])

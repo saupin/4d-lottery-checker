@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Prediction Backtest — Admin{% endblock %}
+
+{% block header %}
+  <h1>&#128202; Prediction Backtest</h1>
+  <p>Measures how well the model's top-20 predictions match real draw results.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+<div class="col-lg-11">
+
+  <!-- Controls -->
+  <div class="section-card mb-4" style="padding:1rem 1.5rem">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div style="font-size:.82rem;color:#8899aa">
+        {% if results %}
+          <strong style="color:#f5c518">Training:</strong> {{ results.train_from }} — {{ results.train_to }}
+          &nbsp;({{ results.n_train }} draws) &nbsp;|&nbsp;
+          <strong style="color:#f5c518">Test:</strong> {{ results.test_from }} — {{ results.test_to }}
+          &nbsp;|&nbsp; Run: <span style="color:#aaa">{{ results.run_at }}</span>
+        {% else %}
+          No backtest results yet. Click Run to compute.
+        {% endif %}
+      </div>
+      <button id="run-btn" onclick="runBacktest()"
+              style="background:none;border:1px solid #f5c518;color:#f5c518;border-radius:5px;
+                     padding:.3rem .9rem;font-size:.8rem;cursor:pointer;transition:all .15s">
+        &#9654; Run Backtest
+      </button>
+    </div>
+  </div>
+
+  {% if results %}
+
+  <!-- Summary cards -->
+  <div class="row g-3 mb-4">
+    {% set lot_order = ['all','toto','magnum','damacai'] %}
+    {% for key in lot_order %}
+    {% set s = results.summary[key] %}
+    <div class="col-md-3">
+      <div class="search-card h-100" style="padding:1rem 1.25rem">
+        <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+                    color:#55aacc;margin-bottom:.5rem">{{ s.label }}</div>
+        <div style="font-size:2rem;font-weight:700;color:#f5c518;line-height:1">{{ s.hit_rate }}%</div>
+        <div style="font-size:.72rem;color:#8899aa;margin-top:.2rem">any-tier hit rate</div>
+        <div style="font-size:.82rem;color:#ccc;margin-top:.6rem">
+          {{ s.n_hit }} / {{ s.n_draws }} draws hit
+        </div>
+        <div style="font-size:.75rem;color:#22c55e;margin-top:.2rem">
+          Top-3 hits: {{ s.n_top3_hit }} draws ({{ s.top3_rate }}%)
+        </div>
+        <div style="font-size:.72rem;color:#8899aa;margin-top:.2rem">
+          Total number hits: {{ s.total_hits }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Per-lottery detail tabs -->
+  <ul class="nav nav-tabs mb-0" id="btTabs" style="border-bottom:1px solid #2a3a4a">
+    {% for key in lot_order %}
+    <li class="nav-item">
+      <a class="nav-link {% if loop.first %}active{% endif %}"
+         href="#bt-{{ key }}" onclick="showTab('{{ key }}'); return false"
+         style="font-size:.78rem;padding:.4rem .9rem">
+        {{ results.summary[key].label }}
+        <span style="font-size:.68rem;color:#8899aa">({{ results.summary[key].hit_rate }}%)</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% for key in lot_order %}
+  {% set s = results.summary[key] %}
+  <div id="bt-{{ key }}" class="bt-tab" style="display:{% if loop.first %}block{% else %}none{% endif %}">
+
+    <!-- Top 20 predicted numbers -->
+    <div class="section-card mt-3 mb-3" style="padding:1rem 1.5rem">
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+                  color:#55aacc;margin-bottom:.6rem">Top 20 Predicted (trained on 2014–2024)</div>
+      <div class="d-flex flex-wrap gap-2">
+        {% for n in s.top20 %}
+        <span style="font-family:monospace;font-size:.95rem;font-weight:700;
+                     background:#0d1117;border:1px solid #2a3a4a;border-radius:4px;
+                     padding:.2rem .5rem;color:#f5c518">{{ n }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Draw-by-draw results -->
+    <div class="section-card" style="padding:0">
+      <div style="overflow-x:auto">
+        <table class="table draw-table mb-0" style="font-size:.78rem">
+          <thead>
+            <tr>
+              <th>Draw Date</th>
+              <th>Actual 1st / 2nd / 3rd</th>
+              <th>Top-3 Hits</th>
+              <th>Special Hits</th>
+              <th>Consolation Hits</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in s.draws | reverse %}
+            <tr style="{% if row.hit_top3 %}background:rgba(245,197,24,.06){% elif row.total_hits %}background:rgba(34,197,94,.04){% endif %}">
+              <td style="font-size:.75rem;color:#8899aa;white-space:nowrap">{{ row.date }}</td>
+              <td style="font-family:monospace;font-weight:700">
+                {{ row.actuals.get('1st','—') }} /
+                {{ row.actuals.get('2nd','—') }} /
+                {{ row.actuals.get('3rd','—') }}
+              </td>
+              <td>
+                {% if row.hit_top3 %}
+                  {% for n in row.hit_top3 %}
+                  <span style="color:#f5c518;font-family:monospace;font-weight:700">{{ n }}</span>{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                {% else %}
+                  <span style="color:#334">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.hit_spec %}
+                  {% for n in row.hit_spec %}
+                  <span style="color:#22c55e;font-family:monospace">{{ n }}</span>{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                {% else %}
+                  <span style="color:#334">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.hit_cons %}
+                  {% for n in row.hit_cons %}
+                  <span style="color:#06b6d4;font-family:monospace">{{ n }}</span>{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                {% else %}
+                  <span style="color:#334">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.total_hits %}
+                <strong style="color:{% if row.hit_top3 %}#f5c518{% else %}#22c55e{% endif %}">
+                  {{ row.total_hits }}
+                </strong>
+                {% else %}
+                <span style="color:#334">0</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% endif %}
+
+</div>
+</div>
+
+<script>
+function showTab(key) {
+  document.querySelectorAll('.bt-tab').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('#btTabs .nav-link').forEach(a => a.classList.remove('active'));
+  document.getElementById('bt-' + key).style.display = 'block';
+  document.querySelector(`#btTabs a[href="#bt-${key}"]`).classList.add('active');
+}
+
+async function runBacktest() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.textContent = 'Running… (this takes ~10s)';
+  try {
+    const r = await fetch('/admin/backtest/run', { method: 'POST' });
+    const d = await r.json();
+    if (r.ok) {
+      btn.textContent = 'Done — reloading…';
+      location.reload();
+    } else {
+      btn.textContent = 'Error';
+      btn.disabled = false;
+      alert(d.error || 'Backtest failed');
+    }
+  } catch {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}
