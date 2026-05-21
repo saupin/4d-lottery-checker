@@ -724,11 +724,36 @@ def next_draw_date() -> str:
 
 
 def build_prediction_model(data: dict, lottery: str | None = None) -> dict:
-    tiers = ["1st", "2nd", "3rd"]
+    # Include all prize tiers (top 3 + 10 specials + 10 consolations)
+    top_tiers  = ["1st", "2nd", "3rd"]
+    list_tiers = ["special", "consolation"]
     pos_counts = [{str(d): 0 for d in range(10)} for _ in range(4)]
     hist_counts: Counter = Counter()
     appearances: dict = defaultdict(list)
+    sum_dist: Counter = Counter()
+    pattern_dist: Counter = Counter()
+    balance_dist: Counter = Counter()
     keys = [lottery] if lottery else LOTTERY_ORDER
+
+    def _record(num: str, date_str: str) -> None:
+        if not num or len(num) != 4 or not num.isdigit():
+            return
+        hist_counts[num] += 1
+        appearances[num].append(date_str)
+        for i, d in enumerate(num):
+            pos_counts[i][d] += 1
+        dsum = sum(int(d) for d in num)
+        sum_dist[dsum] += 1
+        unique = len(set(num))
+        if unique == 4:
+            pattern_dist["All Different"] += 1
+        elif unique == 3:
+            pattern_dist["One Pair"] += 1
+        elif unique == 2:
+            pattern_dist["Two Pairs" if max(Counter(num).values()) == 2 else "Three of a Kind"] += 1
+        else:
+            pattern_dist["Four of a Kind"] += 1
+        balance_dist[sum(1 for d in num if int(d) % 2 == 0)] += 1
 
     for date_str in sorted(data.keys()):
         day = data[date_str]
@@ -737,13 +762,11 @@ def build_prediction_model(data: dict, lottery: str | None = None) -> dict:
             if not lot:
                 continue
             prizes = lot.get("prizes", {})
-            for t in tiers:
-                num = prizes.get(t)
-                if num and len(num) == 4 and num.isdigit():
-                    hist_counts[num] += 1
-                    appearances[num].append(date_str)
-                    for i, d in enumerate(num):
-                        pos_counts[i][d] += 1
+            for t in top_tiers:
+                _record(prizes.get(t, ""), date_str)
+            for t in list_tiers:
+                for num in (prizes.get(t) or []):
+                    _record(num, date_str)
 
     pos_totals = [sum(pc.values()) for pc in pos_counts]
     pos_probs = [
@@ -756,23 +779,39 @@ def build_prediction_model(data: dict, lottery: str | None = None) -> dict:
     last_seen: dict = {}
     avg_gap: dict = {}
     for num, dates in appearances.items():
-        last_seen[num] = dates[-1]
-        if len(dates) > 1:
-            dts = [datetime.strptime(d, "%Y-%m-%d").date() for d in dates]
+        seen = sorted(set(dates))
+        last_seen[num] = seen[-1]
+        if len(seen) > 1:
+            dts = [datetime.strptime(d, "%Y-%m-%d").date() for d in seen]
             gaps = [(dts[j + 1] - dts[j]).days for j in range(len(dts) - 1)]
             avg_gap[num] = sum(gaps) / len(gaps)
 
     total_days = (today - datetime.strptime(min(data.keys()), "%Y-%m-%d").date()).days
     global_avg_gap = total_days / max(len(hist_counts), 1)
 
+    # Peak digit sum and pattern/balance distributions for scoring
+    sum_peak   = max(sum_dist, key=sum_dist.get) if sum_dist else 18
+    sum_total  = sum(sum_dist.values()) or 1
+    sum_probs  = {s: sum_dist[s] / sum_total for s in range(37)}
+
+    pat_total  = sum(pattern_dist.values()) or 1
+    pat_probs  = {p: pattern_dist[p] / pat_total for p in pattern_dist}
+
+    bal_total  = sum(balance_dist.values()) or 1
+    bal_probs  = {b: balance_dist[b] / bal_total for b in balance_dist}
+
     return {
-        "pos_probs": pos_probs,
-        "hist_counts": hist_counts,
-        "hist_max": max(hist_counts.values()) if hist_counts else 1,
-        "last_seen": last_seen,
-        "avg_gap": avg_gap,
+        "pos_probs":      pos_probs,
+        "hist_counts":    hist_counts,
+        "hist_max":       max(hist_counts.values()) if hist_counts else 1,
+        "last_seen":      last_seen,
+        "avg_gap":        avg_gap,
         "global_avg_gap": global_avg_gap,
-        "today": today,
+        "today":          today,
+        "sum_peak":       sum_peak,
+        "sum_probs":      sum_probs,
+        "pat_probs":      pat_probs,
+        "bal_probs":      bal_probs,
     }
 
 
@@ -786,44 +825,69 @@ def _colour(score_pct: float) -> tuple[str, str]:
 
 
 def score_number(num: str, model: dict) -> dict:
+    # ── Position frequency score ──────────────────────────────────────────
     pos_prob = 1.0
     for i, d in enumerate(num):
         pos_prob *= model["pos_probs"][i].get(d, 0.001)
     pos_norm = min(pos_prob / (0.1 ** 4), 2.5) / 2.5
 
-    count = model["hist_counts"].get(num, 0)
+    # ── Digit sum proximity score (gaussian decay from peak) ─────────────
+    dsum     = sum(int(d) for d in num)
+    # Use historical probability of this digit sum (from analysis data)
+    sum_score = model["sum_probs"].get(dsum, 0.001) / max(model["sum_probs"].values())
+
+    # ── Structural pattern score ─────────────────────────────────────────
+    unique = len(set(num))
+    if unique == 4:
+        pat = "All Different"
+    elif unique == 3:
+        pat = "One Pair"
+    elif unique == 2:
+        pat = "Two Pairs" if max(Counter(num).values()) == 2 else "Three of a Kind"
+    else:
+        pat = "Four of a Kind"
+    pat_score = model["pat_probs"].get(pat, 0.001) / max(model["pat_probs"].values())
+
+    # ── Even/odd balance score ────────────────────────────────────────────
+    even_count = sum(1 for d in num if int(d) % 2 == 0)
+    bal_score  = model["bal_probs"].get(even_count, 0.001) / max(model["bal_probs"].values())
+
+    # ── Historical frequency (reduced weight — avoids gambler's bias) ────
+    count     = model["hist_counts"].get(num, 0)
     hist_norm = count / model["hist_max"]
 
+    # ── Gap / overdue score ───────────────────────────────────────────────
     today = model["today"]
     if num in model["last_seen"]:
-        last = datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()
-        days = (today - last).days
-        recency_norm = math.exp(-days / 365)
+        last          = datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()
+        days_since    = (today - last).days
         last_seen_fmt = last.strftime("%d %b %Y")
     else:
-        recency_norm = 0.05
+        days_since    = int(model["global_avg_gap"])
         last_seen_fmt = "Never"
-        days = None
 
-    if num in model["avg_gap"] and model["avg_gap"][num]:
-        days_since = (today - datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()).days
-        gap_norm = min(days_since / model["avg_gap"][num], 3.0) / 3.0
-    elif num in model["last_seen"]:
-        days_since = (today - datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()).days
-        gap_norm = min(days_since / model["global_avg_gap"], 3.0) / 3.0
-    else:
-        gap_norm = 0.4
+    ref_gap  = model["avg_gap"].get(num) or model["global_avg_gap"]
+    gap_norm = min(days_since / ref_gap, 3.0) / 3.0
 
-    composite = 0.15 * pos_norm + 0.60 * hist_norm + 0.15 * recency_norm + 0.10 * gap_norm
+    # ── Composite (weights sum to 1.0) ────────────────────────────────────
+    # pos 30% · sum 20% · pattern 15% · balance 15% · hist 12% · gap 8%
+    composite = (0.30 * pos_norm +
+                 0.20 * sum_score +
+                 0.15 * pat_score +
+                 0.15 * bal_score +
+                 0.12 * hist_norm +
+                 0.08 * gap_norm)
 
     return {
-        "num": num,
-        "composite": round(composite, 6),
-        "pos_norm": round(pos_norm * 100, 1),
-        "hist_norm": round(hist_norm * 100, 1),
-        "recency_norm": round(recency_norm * 100, 1),
-        "gap_norm": round(gap_norm * 100, 1),
-        "count": count,
+        "num":          num,
+        "composite":    round(composite, 6),
+        "pos_norm":     round(pos_norm  * 100, 1),
+        "hist_norm":    round(hist_norm * 100, 1),
+        "sum_score":    round(sum_score * 100, 1),
+        "pat_score":    round(pat_score * 100, 1),
+        "bal_score":    round(bal_score * 100, 1),
+        "gap_norm":     round(gap_norm  * 100, 1),
+        "count":        count,
         "last_seen_fmt": last_seen_fmt,
     }
 
