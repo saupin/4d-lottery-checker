@@ -490,6 +490,48 @@ def load_results() -> dict:
 _predict_cache: dict | None = None
 _predict_cache_mtime: float = 0.0
 
+def _boosted_ranked_scores(data: dict, lottery: str | None,
+                           recency_months: int = 6,
+                           recency_weight: int = 3,
+                           pool_size: int = 400) -> list[dict]:
+    """Rank all numbers using full-history model + recency-boosted model combined."""
+    from datetime import timedelta
+    all_dates  = sorted(data.keys())
+    if not all_dates:
+        return get_ranked_scores(build_prediction_model(data, lottery))
+    last_date  = datetime.strptime(all_dates[-1], "%Y-%m-%d").date()
+    rec_cutoff = (last_date - timedelta(days=recency_months * 30)).strftime("%Y-%m-%d")
+    rec_data   = {d: v for d, v in data.items() if d >= rec_cutoff}
+
+    r_full = get_ranked_scores(build_prediction_model(data, lottery))
+    r_rec  = get_ranked_scores(build_prediction_model(rec_data, lottery)) if rec_data else []
+
+    score: Counter = Counter()
+    for i, r in enumerate(r_full[:pool_size]):
+        score[r["num"]] += pool_size - i
+    for i, r in enumerate(r_rec[:pool_size]):
+        score[r["num"]] += recency_weight * (pool_size - i)
+
+    # Re-attach original metadata from full model sorted by combined score
+    meta = {r["num"]: r for r in r_full}
+    ranked = []
+    for rank, (num, _) in enumerate(score.most_common(), 1):
+        entry = dict(meta.get(num, {"num": num}))
+        entry["rank"] = rank
+        ranked.append(entry)
+    # Re-normalise score_pct / percentile / colour
+    total = len(ranked)
+    top_composite = ranked[0].get("composite", 1) if ranked else 1
+    for rank, r in enumerate(ranked, 1):
+        r["rank"]       = rank
+        r["percentile"] = round((1 - rank / total) * 100, 1)
+        r["score_pct"]  = round(r.get("composite", 0) / top_composite * 100, 1) if top_composite else 0
+        colour, label   = _colour(r["score_pct"])
+        r["colour"]     = colour
+        r["label"]      = label
+    return ranked
+
+
 def _get_predict_cache() -> dict:
     """Build and cache full ranked scores for all lottery keys, keyed by mtime of results file."""
     global _predict_cache, _predict_cache_mtime
@@ -498,8 +540,7 @@ def _get_predict_cache() -> dict:
         data = load_results()
         cache = {}
         for key, lot in LOTTERY_KEYS.items():
-            model  = build_prediction_model(data, lot)
-            ranked = get_ranked_scores(model)
+            ranked = _boosted_ranked_scores(data, lot)
             cache[key] = {"ranked": ranked, "rank_map": {r["num"]: r for r in ranked}}
         _predict_cache      = cache
         _predict_cache_mtime = mtime
@@ -1324,7 +1365,7 @@ def admin_test_analysis():
                     "analysis": analysis, "analysis_ok": bool(analysis)})
 
 
-BACKTEST_TOP_N = 20
+BACKTEST_TOP_N = 250
 
 def _run_backtest(train_from: str = "2014-01-01", train_to: str = "2024-12-31") -> dict:
     global _backtest_cache
@@ -1349,8 +1390,7 @@ def _run_backtest(train_from: str = "2014-01-01", train_to: str = "2024-12-31") 
 
     summary = {}
     for lot_key, lot_val, check_keys in lot_map:
-        model  = build_prediction_model(train_data, lot_val)
-        ranked = get_ranked_scores(model)
+        ranked = _boosted_ranked_scores(train_data, lot_val)
         top20  = [r["num"] for r in ranked[:BACKTEST_TOP_N]]
         top20s = set(top20)
 
