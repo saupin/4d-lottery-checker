@@ -44,7 +44,13 @@
 <div class="tab-content mb-5">
   {% for tab_key, tab_label in [('all','All Lotteries'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
   <div class="tab-pane fade {% if tab_key == 'all' %}show active{% endif %}" id="ptab-{{ tab_key }}">
-    <div class="d-flex justify-content-end mt-3 mb-1">
+    <div class="d-flex justify-content-end align-items-center gap-2 mt-3 mb-1">
+      <button id="toggle-{{ tab_key }}"
+              onclick="toggleExtra('{{ tab_key }}', this)"
+              style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
+                     padding:.2rem .7rem;font-size:.7rem;cursor:pointer;transition:all .15s">
+        Show 50
+      </button>
       <button class="btn-add-sim add-all-btn"
               style="width:auto;padding:.3rem .9rem;font-size:.7rem"
               {% if not session.get('approved') %}disabled title="Only Logged-in users are allowed to use this function."{% endif %}
@@ -52,7 +58,8 @@
     </div>
     <div class="predict-grid">
       {% for r in top20s[tab_key] %}
-      <div class="predict-card">
+      <div class="predict-card{% if loop.index > 20 %} predict-card-extra{% endif %}"
+           {% if loop.index > 20 %}style="display:none"{% endif %}>
         <span class="predict-rank">#{{ r.rank }}</span>
         <div class="predict-num">{{ r.num }}</div>
         <div class="predict-bar-wrap">
@@ -155,7 +162,7 @@
   }
 
   async function addAllToSim(tabKey, allBtn) {
-    const cards      = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
+    const cards      = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)].filter(b => b.closest('.predict-card')?.style.display !== 'none');
     const allTracked = cards.every(b => b.classList.contains('added') || b.classList.contains('already'));
     allBtn.disabled  = true;
     allBtn.textContent = 'Working…';
@@ -205,12 +212,28 @@
     updateAllBtn(tabKey);
   }
 
+  function visibleCount(tabKey) {
+    const extras = document.querySelector(`#ptab-${tabKey} .predict-card-extra`);
+    return (extras && extras.style.display !== 'none') ? 50 : 20;
+  }
+
+  function toggleExtra(tabKey, btn) {
+    const extras = [...document.querySelectorAll(`#ptab-${tabKey} .predict-card-extra`)];
+    const showing = extras.length > 0 && extras[0].style.display !== 'none';
+    extras.forEach(el => el.style.display = showing ? 'none' : '');
+    btn.textContent = showing ? 'Show 50' : 'Show 20';
+    btn.style.borderColor = showing ? '#2a3a4a' : '#55aacc';
+    btn.style.color = showing ? '#55667a' : '#55aacc';
+    updateAllBtn(tabKey);
+  }
+
   function updateAllBtn(tabKey) {
     const allBtn = document.querySelector(`#ptab-${tabKey} .add-all-btn`);
     if (!allBtn) return;
-    const cards = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)];
+    const n = visibleCount(tabKey);
+    const cards = [...document.querySelectorAll(`#ptab-${tabKey} .btn-add-sim:not(.add-all-btn)`)].filter(b => b.closest('.predict-card')?.style.display !== 'none');
     const allTracked = cards.length > 0 && cards.every(b => b.classList.contains('added') || b.classList.contains('already'));
-    allBtn.textContent = allTracked ? '✓ Remove All' : '+ Track All 20';
+    allBtn.textContent = allTracked ? `✓ Remove All` : `+ Track All ${n}`;
   }
 
   async function markTracked() {

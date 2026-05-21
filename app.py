@@ -954,13 +954,13 @@ def predict():
     stored = _load_stored_predictions()
     if stored and all(k in stored for k in LOTTERY_KEYS) \
               and stored["all"].get("based_on") == last_draw:
-        top20s       = {k: stored[k]["nums"][:20] for k in LOTTERY_KEYS}
+        top20s       = {k: stored[k]["nums"][:50] for k in LOTTERY_KEYS}
         based_on     = stored["all"]["based_on"]
         generated_at = stored["all"]["generated_at"]
     else:
         # Fall back to live computation
         cache        = _get_predict_cache()
-        top20s       = {k: v["ranked"][:20] for k, v in cache.items()}
+        top20s       = {k: v["ranked"][:50] for k, v in cache.items()}
         based_on     = last_draw
         generated_at = None
 
@@ -1582,10 +1582,12 @@ def _prediction_vs_last_draw() -> list[dict]:
         pred = stored.get(lot_key)
         if not pred:
             continue
-        top_nums = [e["num"] for e in pred["nums"][:250]]
-        top_set  = set(top_nums)
-        based_on = pred.get("based_on", "")
-        gen_at   = pred.get("generated_at", "")
+        top_entries = pred["nums"][:250]
+        top_nums    = [e["num"] for e in top_entries]
+        rank_map    = {e["num"]: e.get("rank", i + 1) for i, e in enumerate(top_entries)}
+        top_set     = set(top_nums)
+        based_on    = pred.get("based_on", "")
+        gen_at      = pred.get("generated_at", "")
 
         hits_top3 = []; hits_spec = []; hits_cons = []
         for key in check_keys:
@@ -1604,8 +1606,8 @@ def _prediction_vs_last_draw() -> list[dict]:
                 if n in top_set:
                     hits_cons.append(n)
 
-        total_hits  = len(hits_top3) + len(hits_spec) + len(hits_cons)
-        match_pct   = round(total_hits / len(top_nums) * 100, 1) if top_nums else 0
+        total_hits = len(hits_top3) + len(hits_spec) + len(hits_cons)
+        match_pct  = round(total_hits / len(top_nums) * 100, 1) if top_nums else 0
 
         rows.append({
             "label":      label,
@@ -1619,7 +1621,8 @@ def _prediction_vs_last_draw() -> list[dict]:
             "hits_cons":  hits_cons,
             "total_hits": total_hits,
             "match_pct":  match_pct,
-            "top20":      top_nums[:20],
+            "top20":      [{"num": e["num"], "rank": rank_map[e["num"]]} for e in top_entries[:20]],
+            "rank_map":   rank_map,
         })
     return rows
 
