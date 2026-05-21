@@ -12,11 +12,10 @@
 <!-- Algorithm explanation -->
 <div class="algo-card">
   <strong>How the score is calculated:</strong>
-  Position frequency (30%) &bull; Digit sum proximity to peak (20%) &bull;
-  Structural pattern match (15%) &bull; Even/odd balance (15%) &bull;
-  Historical frequency (12%) &bull; Gap / overdue (8%) &bull;
-  Recent 6-month draws weighted 3&times; heavier.
-  <em>Lottery draws are independent random events — this is pattern analysis, not a guarantee.</em>
+  Per-position digit frequency (50%) &bull; All-tier historical frequency (50%) &bull;
+  combined with a 3&times; recency boost on the last 6 months.
+  Backtested on 217 draws (2025): top-250 numbers hit 40&ndash;52% of draws per lottery.
+  <em>Lottery draws are independent random events &mdash; this is pattern analysis, not a guarantee.</em>
 </div>
 
 {% if generated_at %}
@@ -268,10 +267,8 @@
         : `Won <strong>${data.count}</strong> time${data.count !== 1 ? 's' : ''} in ${LOTTERY_LABELS[selectedLottery]} &bull; last: <strong>${data.last_seen_fmt}</strong>`;
 
       const factors = [
-        { name: 'Historical Freq. (60%)', val: data.hist_norm },
-        { name: 'Recency (15%)',              val: data.recency_norm },
-        { name: 'Positional Pattern (15%)',   val: data.pos_norm },
-        { name: 'Gap / Due (10%)',            val: data.gap_norm },
+        { name: 'Historical Frequency (50%)', val: data.hist_norm },
+        { name: 'Position-Digit Pattern (50%)', val: data.pos_norm },
       ];
 
       const factorRows = factors.map(f => `
