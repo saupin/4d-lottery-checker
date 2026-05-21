@@ -21,7 +21,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install requests beautifulsoup4
+        run: pip install requests beautifulsoup4 flask werkzeug
 
       - name: Scrape latest draw
         run: python scraper.py --save lot_results.json
@@ -42,6 +42,14 @@ jobs:
             echo "new_results=true"  >> $GITHUB_OUTPUT
             echo "draw_date=${DATE}" >> $GITHUB_OUTPUT
           fi
+
+      - name: Generate and store predictions
+        if: steps.commit.outputs.new_results == 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SECRET_KEY:   predict-store-dummy
+        run: python predict_store.py
 
       - name: Notify Telegram on success
         if: success()

@@ -12,13 +12,25 @@
 <!-- Algorithm explanation -->
 <div class="algo-card">
   <strong>How the score is calculated:</strong>
-  Composite of four factors &mdash;
-  <strong>Historical frequency</strong> (60%): how many times this exact number has won;
-  <strong>Positional probability</strong> (15%): how common is each digit at each position;
-  <strong>Recency</strong> (15%): exponential decay from last win date;
-  <strong>Gap / Due</strong> (10%): how overdue relative to its own average win interval.
+  Position frequency (30%) &bull; Digit sum proximity to peak (20%) &bull;
+  Structural pattern match (15%) &bull; Even/odd balance (15%) &bull;
+  Historical frequency (12%) &bull; Gap / overdue (8%) &bull;
+  Recent 6-month draws weighted 3&times; heavier.
   <em>Lottery draws are independent random events — this is pattern analysis, not a guarantee.</em>
 </div>
+
+{% if generated_at %}
+<div style="font-size:.78rem;color:#8899aa;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem">
+  <span style="color:#22c55e;font-size:.85rem">&#9679;</span>
+  Predictions generated after
+  <strong style="color:#f5c518">{{ based_on }}</strong> draw
+  &mdash; {{ generated_at }}
+</div>
+{% elif based_on %}
+<div style="font-size:.78rem;color:#55667a;margin-bottom:.75rem">
+  &#128336; Live prediction based on draws up to <strong>{{ based_on }}</strong>
+</div>
+{% endif %}
 
 <!-- Top 20 with lottery tabs -->
 <div class="section-title mb-2">&#127941; Top 20 Predicted Numbers</div>

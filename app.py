@@ -959,12 +959,47 @@ def get_ranked_scores(model: dict) -> list[dict]:
 LOTTERY_KEYS = {"all": None, "damacai": "damacai", "magnum": "magnum", "toto": "toto"}
 
 
+def _load_stored_predictions() -> dict | None:
+    """Load predictions saved by predict_store.py from Supabase."""
+    if not (_SB_URL and _SB_KEY):
+        return None
+    try:
+        r = _req.get(f"{_SB_URL}/rest/v1/latest_predictions?select=id,data",
+                     headers=_sb_headers(), timeout=5)
+        rows = r.json()
+        if not rows or len(rows) < 4:
+            return None
+        result = {}
+        for row in rows:
+            pred = json.loads(row["data"])
+            result[row["id"]] = pred
+        return result
+    except Exception:
+        return None
+
+
 @app.route("/predict")
 def predict():
-    cache  = _get_predict_cache()
-    top20s = {k: v["ranked"][:20] for k, v in cache.items()}
-    return render_template("predict.html", top20s=top20s, total_dates=len(load_results()),
-                           next_draw=next_draw_date(), active_page="predict")
+    data      = load_results()
+    last_draw = max(data.keys()) if data else ""
+
+    # Use stored predictions from Supabase if they match current data
+    stored = _load_stored_predictions()
+    if stored and all(k in stored for k in LOTTERY_KEYS) \
+              and stored["all"].get("based_on") == last_draw:
+        top20s       = {k: stored[k]["nums"][:20] for k in LOTTERY_KEYS}
+        based_on     = stored["all"]["based_on"]
+        generated_at = stored["all"]["generated_at"]
+    else:
+        # Fall back to live computation
+        cache        = _get_predict_cache()
+        top20s       = {k: v["ranked"][:20] for k, v in cache.items()}
+        based_on     = last_draw
+        generated_at = None
+
+    return render_template("predict.html", top20s=top20s, total_dates=len(data),
+                           next_draw=next_draw_date(), active_page="predict",
+                           based_on=based_on, generated_at=generated_at)
 
 
 @app.route("/api/score")
