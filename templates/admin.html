@@ -149,38 +149,46 @@
         {% endfor %}
       </div>
 
-      <!-- Top 20 per lottery with hit highlights -->
-      <ul class="nav mb-2" id="predTabs" style="gap:.3rem">
-        {% for row in pred_summary %}
-        <li>
-          <a href="#" onclick="showPredTab('{{ row.lot_key }}'); return false"
-             id="ptab-lnk-{{ row.lot_key }}"
-             style="font-size:.72rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none;
-                    background:{% if loop.first %}#1d3a5a{% else %}#0d1117{% endif %};
-                    color:{% if loop.first %}#55aacc{% else %}#55667a{% endif %};
-                    border:1px solid {% if loop.first %}#2a5a8a{% else %}#2a3a4a{% endif %}">
-            {{ row.label }}
-            {% if row.hits_top3 %}<span style="color:#f5c518">●</span>{% endif %}
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
+      <!-- Top numbers per lottery with hit highlights -->
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <ul class="nav" id="predTabs" style="gap:.3rem;margin:0;padding:0;list-style:none;display:flex">
+          {% for row in pred_summary %}
+          <li>
+            <a href="#" onclick="showPredTab('{{ row.lot_key }}'); return false"
+               id="ptab-lnk-{{ row.lot_key }}"
+               style="font-size:.72rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none;
+                      background:{% if loop.first %}#1d3a5a{% else %}#0d1117{% endif %};
+                      color:{% if loop.first %}#55aacc{% else %}#55667a{% endif %};
+                      border:1px solid {% if loop.first %}#2a5a8a{% else %}#2a3a4a{% endif %}">
+              {{ row.label }}
+              {% if row.hits_top3 %}<span style="color:#f5c518">●</span>{% endif %}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        <button id="admin-pred-toggle" onclick="toggleAdminPred(this)"
+                style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
+                       padding:.15rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
+          Show all 250
+        </button>
+      </div>
 
       {% for row in pred_summary %}
       <div id="predtab-{{ row.lot_key }}" class="pred-tab"
            style="display:{% if loop.first %}block{% else %}none{% endif %}">
         <div class="d-flex flex-wrap gap-1">
           {% set all_hits = (row.hits_top3 + row.hits_spec + row.hits_cons) %}
-          {% for entry in row.top20 %}
-          {% set num    = entry.num %}
-          {% set rank   = entry.rank %}
+          {% for entry in row.top250 %}
+          {% set num     = entry.num %}
+          {% set rank    = entry.rank %}
           {% set is_top3 = num in row.hits_top3 %}
           {% set is_hit  = num in all_hits %}
-          <span style="font-family:monospace;font-weight:700;text-align:center;
-                       padding:.25rem .5rem;border-radius:4px;line-height:1.3;
+          <span class="pred-chip{% if loop.index > 20 %} pred-chip-extra{% endif %}"
+                style="font-family:monospace;font-weight:700;text-align:center;padding:.25rem .5rem;border-radius:4px;line-height:1.3;
                        {% if is_top3 %}background:#3a2a00;border:1px solid #f5c518;color:#f5c518;
                        {% elif is_hit %}background:#0a2a0a;border:1px solid #22c55e;color:#22c55e;
-                       {% else %}background:#0d1117;border:1px solid #2a3a4a;color:#55667a;{% endif %}">
+                       {% else %}background:#0d1117;border:1px solid #2a3a4a;color:#55667a;{% endif %}
+                       {% if loop.index > 20 %};display:none{% endif %}">
             <span style="font-size:.88rem">{{ num }}</span><br>
             <span style="font-size:.56rem;font-weight:400;opacity:.65">#{{ rank }}</span>
           </span>
@@ -200,6 +208,8 @@
 </div>
 
 <script>
+let _adminPredShowAll = false;
+
 function showPredTab(key) {
   document.querySelectorAll('.pred-tab').forEach(el => el.style.display = 'none');
   document.querySelectorAll('#predTabs a').forEach(a => {
@@ -208,6 +218,16 @@ function showPredTab(key) {
   document.getElementById('predtab-' + key).style.display = 'block';
   const lnk = document.getElementById('ptab-lnk-' + key);
   lnk.style.background = '#1d3a5a'; lnk.style.color = '#55aacc'; lnk.style.borderColor = '#2a5a8a';
+}
+
+function toggleAdminPred(btn) {
+  _adminPredShowAll = !_adminPredShowAll;
+  document.querySelectorAll('.pred-chip-extra').forEach(el => {
+    el.style.display = _adminPredShowAll ? '' : 'none';
+  });
+  btn.textContent = _adminPredShowAll ? 'Show 20' : 'Show all 250';
+  btn.style.borderColor = _adminPredShowAll ? '#55aacc' : '#2a3a4a';
+  btn.style.color        = _adminPredShowAll ? '#55aacc' : '#55667a';
 }
 
 async function generatePredictions() {

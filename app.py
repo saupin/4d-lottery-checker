@@ -1621,7 +1621,7 @@ def _prediction_vs_last_draw() -> list[dict]:
             "hits_cons":  hits_cons,
             "total_hits": total_hits,
             "match_pct":  match_pct,
-            "top20":      [{"num": e["num"], "rank": rank_map[e["num"]]} for e in top_entries[:20]],
+            "top250":     [{"num": e["num"], "rank": rank_map[e["num"]]} for e in top_entries],
             "rank_map":   rank_map,
         })
     return rows
