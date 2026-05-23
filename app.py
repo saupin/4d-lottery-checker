@@ -927,14 +927,24 @@ LOTTERY_KEYS = {"all": None, "damacai": "damacai", "magnum": "magnum", "toto": "
 
 
 def _load_stored_predictions() -> dict | None:
-    """Load predictions saved by predict_store.py from Supabase."""
+    """Load predictions saved by predict_store.py from Supabase.
+
+    Returns a dict keyed by row id. IDs are:
+      - ``{lot_key}``          → live predictions (all data)
+      - ``{lot_key}_holdout``  → holdout predictions (latest draw excluded),
+                                 used for honest validation in admin panel.
+    """
     if not (_SB_URL and _SB_KEY):
         return None
     try:
         r = _req.get(f"{_SB_URL}/rest/v1/latest_predictions?select=id,data",
                      headers=_sb_headers(), timeout=5)
         rows = r.json()
-        if not rows or len(rows) < 4:
+        # Require at least the 4 live rows (all/damacai/magnum/toto).
+        # Holdout rows are optional — they may not exist yet on first run
+        # after deployment.
+        live_count = sum(1 for row in rows if not row.get("id", "").endswith("_holdout"))
+        if not rows or live_count < 4:
             return None
         result = {}
         for row in rows:
@@ -1509,12 +1519,15 @@ def admin_generate_predictions():
     if not session.get("is_admin"):
         return jsonify({"error": "Unauthorized"}), 403
     try:
-        data      = load_results()
-        last_draw = max(data.keys()) if data else ""
+        data         = load_results()
+        sorted_dates = sorted(data.keys()) if data else []
+        last_draw    = sorted_dates[-1] if sorted_dates else ""
+        prev_draw    = sorted_dates[-2] if len(sorted_dates) >= 2 else ""
+        holdout_data = {d: v for d, v in data.items() if d != last_draw} if last_draw else {}
         generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-        for lot_key, lot_val in LOTTERY_KEYS.items():
-            ranked = _boosted_ranked_scores(data, lot_val)
-            nums = [
+
+        def _nums_from(ranked):
+            return [
                 {
                     "num":           r["num"],
                     "rank":          r.get("rank", 0),
@@ -1527,13 +1540,34 @@ def admin_generate_predictions():
                 }
                 for r in ranked[:250]
             ]
-            payload = {"based_on": last_draw, "generated_at": generated_at, "nums": nums}
+
+        def _save(row_id: str, payload: dict):
             if _SB_URL and _SB_KEY:
                 _req.post(f"{_SB_URL}/rest/v1/latest_predictions",
                           headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
-                          json={"id": lot_key, "data": json.dumps(payload, ensure_ascii=False)},
+                          json={"id": row_id, "data": json.dumps(payload, ensure_ascii=False)},
                           timeout=10)
-        return jsonify({"ok": True, "based_on": last_draw, "generated_at": generated_at})
+
+        for lot_key, lot_val in LOTTERY_KEYS.items():
+            # Live predictions (uses all data) — shown to users on /predict
+            ranked_live = _boosted_ranked_scores(data, lot_val)
+            _save(lot_key, {
+                "based_on": last_draw,
+                "generated_at": generated_at,
+                "nums": _nums_from(ranked_live),
+            })
+
+            # Holdout predictions (latest draw excluded) — for honest admin validation
+            if prev_draw and holdout_data:
+                ranked_ho = _boosted_ranked_scores(holdout_data, lot_val)
+                _save(f"{lot_key}_holdout", {
+                    "based_on": prev_draw,
+                    "generated_at": generated_at,
+                    "nums": _nums_from(ranked_ho),
+                })
+
+        return jsonify({"ok": True, "based_on": last_draw, "generated_at": generated_at,
+                        "holdout_based_on": prev_draw})
     except Exception as ex:
         return jsonify({"error": str(ex)}), 500
 
@@ -1560,7 +1594,12 @@ def admin_trigger_scraper():
 
 
 def _prediction_vs_last_draw() -> list[dict]:
-    """Compare stored predictions against the most recent draw for each lottery."""
+    """Compare stored *holdout* predictions against the most recent draw for each lottery.
+
+    Holdout predictions are generated from data with the latest draw excluded
+    (see predict_store.py), so comparing them to the latest draw is a true
+    out-of-sample test — no data leakage.
+    """
     stored = _load_stored_predictions()
     if not stored:
         return []
@@ -1578,8 +1617,16 @@ def _prediction_vs_last_draw() -> list[dict]:
     ]
 
     rows = []
+    is_holdout = True
     for lot_key, check_keys, label in lot_map:
-        pred = stored.get(lot_key)
+        # Prefer the holdout prediction (trained without the latest draw) so the
+        # comparison below is a real out-of-sample test. Fall back to the live
+        # prediction only if no holdout record exists yet (e.g. first run after
+        # this change is deployed but before predict_store has re-run).
+        pred = stored.get(f"{lot_key}_holdout")
+        if not pred:
+            pred = stored.get(lot_key)
+            is_holdout = False
         if not pred:
             continue
         top_entries = pred["nums"][:250]
@@ -1623,6 +1670,7 @@ def _prediction_vs_last_draw() -> list[dict]:
             "match_pct":  match_pct,
             "top250":     [{"num": e["num"], "rank": rank_map[e["num"]]} for e in top_entries],
             "rank_map":   rank_map,
+            "is_holdout": is_holdout,
         })
     return rows
 

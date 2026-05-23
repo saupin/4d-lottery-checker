@@ -101,11 +101,30 @@
   <div class="col-lg-7 mt-4">
     <div class="section-card">
       <div class="section-title mb-1">&#128302; Predictions vs Last Draw</div>
+      {% if pred_summary[0].is_holdout %}
+      <div style="font-size:.72rem;color:#55667a;margin-bottom:.4rem">
+        <span style="color:#22c55e;font-weight:700">Holdout test (out-of-sample):</span>
+        predictions were built from data <em>excluding</em> the latest draw
+        (<strong style="color:#8899aa">{{ pred_summary[0].based_on }}</strong>)
+        and are now tested against the unseen draw on
+        <strong style="color:#f5c518">{{ pred_summary[0].draw_date }}</strong>.
+      </div>
+      <div style="font-size:.68rem;color:#55667a;margin-bottom:1rem;font-style:italic">
+        This is an honest backtest — the model never saw the draw being scored
+        against, so the match rate reflects true predictive power
+        (typically very low, since 4D draws are near-random).
+        Generated {{ pred_summary[0].gen_at }}.
+      </div>
+      {% else %}
+      <div style="font-size:.72rem;color:#f5c518;margin-bottom:.4rem">
+        &#9888; Showing live predictions (no holdout record found yet — will appear after next scrape).
+      </div>
       <div style="font-size:.72rem;color:#55667a;margin-bottom:1rem">
         Predictions based on <strong style="color:#8899aa">{{ pred_summary[0].based_on }}</strong>
         draw &mdash; tested against <strong style="color:#f5c518">{{ pred_summary[0].draw_date }}</strong>
         &mdash; {{ pred_summary[0].gen_at }}
       </div>
+      {% endif %}
 
       <!-- Summary cards -->
       <div class="d-flex gap-3 flex-wrap mb-3">
