@@ -55,11 +55,18 @@
     </li>
     {% endfor %}
   </ul>
-  <button id="admin-pred-toggle-{{ view_id }}" onclick="toggleAdminPred('{{ view_id }}', this)"
-          style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
-                 padding:.15rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
-    Show all 250
-  </button>
+  <div style="display:flex;gap:.3rem">
+    <button id="admin-sort-toggle-{{ view_id }}" onclick="togglePredSort('{{ view_id }}', this)"
+            style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
+                   padding:.15rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
+      Sort by #
+    </button>
+    <button id="admin-pred-toggle-{{ view_id }}" onclick="toggleAdminPred('{{ view_id }}', this)"
+            style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
+                   padding:.15rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
+      Show all 250
+    </button>
+  </div>
 </div>
 
 {% for row in summary %}
@@ -255,15 +262,45 @@
 
 <script>
 const _adminPredShowAll = { prev: false, curr: false };
+const _adminPredSort   = { prev: 'rank', curr: 'rank' };
 
 function showPredTab(viewId, key) {
   document.querySelectorAll(`.pred-tab-${viewId}`).forEach(el => el.style.display = 'none');
   document.querySelectorAll(`#predTabs-${viewId} a`).forEach(a => {
     a.style.background = '#0d1117'; a.style.color = '#55667a'; a.style.borderColor = '#2a3a4a';
   });
-  document.getElementById(`predtab-${viewId}-${key}`).style.display = 'block';
+  const tab = document.getElementById(`predtab-${viewId}-${key}`);
+  tab.style.display = 'block';
   const lnk = document.getElementById(`ptab-lnk-${viewId}-${key}`);
   lnk.style.background = '#1d3a5a'; lnk.style.color = '#55aacc'; lnk.style.borderColor = '#2a5a8a';
+  _applySort(viewId, tab);
+}
+
+function _applySort(viewId, tab) {
+  const sortBy = _adminPredSort[viewId];
+  const grid = tab.querySelector('.d-flex.flex-wrap.gap-1');
+  if (!grid) return;
+  const chips = [...grid.children];
+  chips.sort((a, b) => {
+    if (sortBy === 'number') {
+      return parseInt(a.querySelector('span').textContent) - parseInt(b.querySelector('span').textContent);
+    } else {
+      const ra = parseInt(a.querySelector('span:last-child').textContent.replace('#', ''));
+      const rb = parseInt(b.querySelector('span:last-child').textContent.replace('#', ''));
+      return ra - rb;
+    }
+  });
+  chips.forEach(c => grid.appendChild(c));
+}
+
+function togglePredSort(viewId, btn) {
+  _adminPredSort[viewId] = _adminPredSort[viewId] === 'rank' ? 'number' : 'rank';
+  const byNum = _adminPredSort[viewId] === 'number';
+  btn.textContent    = byNum ? 'Sort by Rank' : 'Sort by #';
+  btn.style.color    = byNum ? '#55aacc' : '#55667a';
+  btn.style.borderColor = byNum ? '#55aacc' : '#2a3a4a';
+  const activeTab = document.querySelector(`.pred-tab-${viewId}[style*="block"]`);
+  if (activeTab) _applySort(viewId, activeTab);
 }
 
 function toggleAdminPred(viewId, btn) {
