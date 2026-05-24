@@ -1670,11 +1670,19 @@ def _prediction_vs_last_draw(use_holdout: bool = True) -> list[dict]:
         gen_at      = pred.get("generated_at", "")
 
         hits_top3 = []; hits_spec = []; hits_cons = []
+        draw_prizes = {}
         for key in check_keys:
             lot = day.get(key)
             if not lot:
                 continue
             p = lot.get("prizes", {})
+            draw_prizes[key] = {
+                "1st":         p.get("1st", "") or "",
+                "2nd":         p.get("2nd", "") or "",
+                "3rd":         p.get("3rd", "") or "",
+                "special":     p.get("special", []) or [],
+                "consolation": p.get("consolation", []) or [],
+            }
             for t in ["1st", "2nd", "3rd"]:
                 n = p.get(t)
                 if n and n in top_set:
@@ -1690,20 +1698,21 @@ def _prediction_vs_last_draw(use_holdout: bool = True) -> list[dict]:
         match_pct  = round(total_hits / len(top_nums) * 100, 1) if top_nums else 0
 
         rows.append({
-            "label":      label,
-            "lot_key":    lot_key,
-            "based_on":   based_on,
-            "gen_at":     gen_at,
-            "draw_date":  last_date,
-            "top_n":      len(top_nums),
-            "hits_top3":  hits_top3,
-            "hits_spec":  hits_spec,
-            "hits_cons":  hits_cons,
-            "total_hits": total_hits,
-            "match_pct":  match_pct,
-            "top250":     [{"num": e["num"], "rank": rank_map[e["num"]]} for e in top_entries],
-            "rank_map":   rank_map,
-            "is_holdout": is_holdout,
+            "label":       label,
+            "lot_key":     lot_key,
+            "based_on":    based_on,
+            "gen_at":      gen_at,
+            "draw_date":   last_date,
+            "top_n":       len(top_nums),
+            "hits_top3":   hits_top3,
+            "hits_spec":   hits_spec,
+            "hits_cons":   hits_cons,
+            "total_hits":  total_hits,
+            "match_pct":   match_pct,
+            "top250":      [{"num": e["num"], "rank": rank_map[e["num"]]} for e in top_entries],
+            "rank_map":    rank_map,
+            "is_holdout":  is_holdout,
+            "draw_prizes": draw_prizes,
         })
     return rows
 

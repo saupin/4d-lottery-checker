@@ -238,6 +238,68 @@
           {% endif %}
         </div>
         {{ _pred_cards(prev_summary, 'prev') }}
+
+        <!-- Draw Results: 3 lottery boxes -->
+        {% set all_row = prev_summary[0] %}
+        {% if all_row.draw_prizes %}
+        <div style="margin-top:1.25rem">
+          <div style="font-size:.68rem;color:#55667a;text-transform:uppercase;letter-spacing:.5px;
+                      font-weight:700;margin-bottom:.6rem">
+            &#127942; Actual Draw Results &mdash; {{ all_row.draw_date }}
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            {% for lot_key, lot_label in [("damacai","DAMACAI"),("magnum","MAGNUM"),("toto","SPORTSTOTO")] %}
+            {% set prizes = all_row.draw_prizes.get(lot_key) %}
+            {% set pred_row = prev_summary | selectattr("lot_key","equalto",lot_key) | first %}
+            {% set rmap = pred_row.rank_map if pred_row else {} %}
+            <div style="flex:1;min-width:180px;background:#060c12;border:1px solid #1a2a3a;
+                        border-radius:8px;padding:.65rem .75rem">
+              <div style="font-size:.65rem;color:#55aacc;font-weight:700;text-transform:uppercase;
+                          letter-spacing:.5px;margin-bottom:.55rem">{{ lot_label }}</div>
+              {% if prizes %}
+              <!-- 1st / 2nd / 3rd -->
+              {% for tier, tier_color in [("1st","#f5c518"),("2nd","#aaaaaa"),("3rd","#cd7f32")] %}
+              {% set n = prizes[tier] %}
+              <div style="display:flex;align-items:center;gap:.4rem;margin-bottom:.25rem">
+                <span style="font-size:.58rem;color:#55667a;width:1.8rem;flex-shrink:0">{{ tier }}</span>
+                <span style="font-family:monospace;font-weight:700;font-size:.95rem;
+                             color:{{ tier_color if n in rmap else '#8899aa' }}">{{ n or '—' }}</span>
+                {% if n and n in rmap %}
+                <span style="font-size:.55rem;color:#55667a">#{{ rmap[n] }}</span>
+                {% endif %}
+              </div>
+              {% endfor %}
+              <!-- Special -->
+              <div style="font-size:.58rem;color:#55667a;margin:.45rem 0 .2rem">Special</div>
+              <div style="display:flex;flex-wrap:wrap;gap:2px;margin-bottom:.4rem">
+                {% for n in prizes.special %}
+                <span style="font-family:monospace;font-size:.7rem;padding:.1rem .28rem;border-radius:3px;
+                             {% if n in rmap %}background:#1a2a00;border:1px solid #55aa22;color:#88cc44;
+                             {% else %}background:#0d1117;border:1px solid #1a2a3a;color:#55667a;{% endif %}">
+                  {{ n }}{% if n in rmap %}<sup style="font-size:.45rem;opacity:.7">#{{ rmap[n] }}</sup>{% endif %}
+                </span>
+                {% endfor %}
+              </div>
+              <!-- Consolation -->
+              <div style="font-size:.58rem;color:#55667a;margin-bottom:.2rem">Consolation</div>
+              <div style="display:flex;flex-wrap:wrap;gap:2px">
+                {% for n in prizes.consolation %}
+                <span style="font-family:monospace;font-size:.7rem;padding:.1rem .28rem;border-radius:3px;
+                             {% if n in rmap %}background:#1a2a00;border:1px solid #55aa22;color:#88cc44;
+                             {% else %}background:#0d1117;border:1px solid #1a2a3a;color:#55667a;{% endif %}">
+                  {{ n }}{% if n in rmap %}<sup style="font-size:.45rem;opacity:.7">#{{ rmap[n] }}</sup>{% endif %}
+                </span>
+                {% endfor %}
+              </div>
+              {% else %}
+              <div style="font-size:.75rem;color:#55667a;padding:.5rem 0">No draw data</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
         {% else %}
         <div style="font-size:.82rem;color:#55667a;padding:1.5rem 0;text-align:center">
           No pre-draw prediction stored yet. Generate predictions after the next draw to populate this.
