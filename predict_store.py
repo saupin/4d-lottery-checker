@@ -3,6 +3,17 @@
 Run after each successful scrape to generate and store the top-250 predictions
 for each lottery in Supabase (table: latest_predictions).
 
+For each lottery we store TWO records:
+
+* ``{lot_key}``         — "live" predictions built from ALL available draws.
+                         Used by ``/predict`` to suggest bets for the next, still
+                         unknown draw.
+* ``{lot_key}_holdout`` — "holdout" predictions built from data with the most
+                         recent draw EXCLUDED. ``based_on`` is the previous
+                         draw date. These are compared against the latest draw
+                         in the admin panel to give a true out-of-sample
+                         match rate (no data leakage).
+
 Usage:
     python predict_store.py
 
@@ -33,16 +44,52 @@ import requests as _req
 TOP_N = 250
 
 
+def _serialize(ranked):
+    return [
+        {
+            "num":           r["num"],
+            "rank":          r.get("rank", 0),
+            "score_pct":     r.get("score_pct", 0),
+            "percentile":    r.get("percentile", 0),
+            "colour":        r.get("colour", "#888"),
+            "label":         r.get("label", ""),
+            "count":         r.get("count", 0),
+            "last_seen_fmt": r.get("last_seen_fmt", "Never"),
+        }
+        for r in ranked[:TOP_N]
+    ]
+
+
+def _upsert(row_id: str, payload: dict) -> str:
+    if not (_SB_URL and _SB_KEY):
+        return "skipped"
+    r = _req.post(
+        f"{_SB_URL}/rest/v1/latest_predictions",
+        headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
+        json={"id": row_id, "data": json.dumps(payload, ensure_ascii=False)},
+        timeout=10,
+    )
+    return "OK" if r.status_code in (200, 201) else f"HTTP {r.status_code}"
+
+
 def main():
     data = load_results()
     if not data:
         print("ERROR: No results data found")
         sys.exit(1)
 
-    last_draw    = max(data.keys())
-    generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    sorted_dates  = sorted(data.keys())
+    last_draw     = sorted_dates[-1]
+    prev_draw     = sorted_dates[-2] if len(sorted_dates) >= 2 else ""
+    holdout_data  = {d: v for d, v in data.items() if d != last_draw}
+    generated_at  = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 
-    print(f"Generating top-{TOP_N} predictions based on draw: {last_draw}")
+    print(f"Generating top-{TOP_N} predictions")
+    print(f"  live    based_on = {last_draw}  (all {len(data)} draws)")
+    if prev_draw:
+        print(f"  holdout based_on = {prev_draw}  ({len(holdout_data)} draws, latest excluded)")
+    else:
+        print("  holdout: skipped (need at least 2 draws)")
 
     # Backup current predictions before overwriting
     if _SB_URL and _SB_KEY:
@@ -59,37 +106,26 @@ def main():
             print(f"  Warning: backup failed: {e}")
 
     for lot_key, lot_val in LOTTERY_KEYS.items():
-        ranked = _boosted_ranked_scores(data, lot_val)
-        nums = [
-            {
-                "num":           r["num"],
-                "rank":          r.get("rank", 0),
-                "score_pct":     r.get("score_pct", 0),
-                "percentile":    r.get("percentile", 0),
-                "colour":        r.get("colour", "#888"),
-                "label":         r.get("label", ""),
-                "count":         r.get("count", 0),
-                "last_seen_fmt": r.get("last_seen_fmt", "Never"),
-            }
-            for r in ranked[:TOP_N]
-        ]
-        payload = {
+        # Live predictions — for users picking next-draw bets
+        ranked_live = _boosted_ranked_scores(data, lot_val)
+        payload_live = {
             "based_on":     last_draw,
             "generated_at": generated_at,
-            "nums":         nums,
+            "nums":         _serialize(ranked_live),
         }
+        status_live = _upsert(lot_key, payload_live)
+        print(f"  {lot_key:8s}: live    → {status_live}")
 
-        if _SB_URL and _SB_KEY:
-            r = _req.post(
-                f"{_SB_URL}/rest/v1/latest_predictions",
-                headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
-                json={"id": lot_key, "data": json.dumps(payload, ensure_ascii=False)},
-                timeout=10,
-            )
-            status = "OK" if r.status_code in (200, 201) else f"HTTP {r.status_code}"
-            print(f"  {lot_key:8s}: {len(nums)} numbers → Supabase {status}")
-        else:
-            print(f"  {lot_key:8s}: Supabase not configured, skipping")
+        # Holdout predictions — built without the latest draw, for honest validation
+        if prev_draw and holdout_data:
+            ranked_ho = _boosted_ranked_scores(holdout_data, lot_val)
+            payload_ho = {
+                "based_on":     prev_draw,
+                "generated_at": generated_at,
+                "nums":         _serialize(ranked_ho),
+            }
+            status_ho = _upsert(f"{lot_key}_holdout", payload_ho)
+            print(f"  {lot_key:8s}: holdout → {status_ho}")
 
     print("Done.")
 

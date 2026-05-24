@@ -212,9 +212,16 @@
       <div id="pred-view-prev">
         {% if prev_summary %}
         <div style="font-size:.72rem;color:#55667a;margin-bottom:1rem">
-          &#9989; Pre-draw prediction based on <strong style="color:#8899aa">{{ prev_summary[0].based_on }}</strong>
+          {% if prev_summary[0].is_holdout %}
+          <span style="color:#22c55e;font-weight:700">Holdout (out-of-sample):</span>
+          built excluding the latest draw, based on <strong style="color:#8899aa">{{ prev_summary[0].based_on }}</strong>
           &mdash; tested against <strong style="color:#f5c518">{{ prev_summary[0].draw_date }}</strong>
           &mdash; {{ prev_summary[0].gen_at }}
+          {% else %}
+          <span style="color:#f5c518">&#9888; Live prediction (holdout not available yet)</span>
+          &mdash; based on <strong style="color:#8899aa">{{ prev_summary[0].based_on }}</strong>
+          &mdash; tested against <strong style="color:#f5c518">{{ prev_summary[0].draw_date }}</strong>
+          {% endif %}
         </div>
         {{ _pred_cards(prev_summary, 'prev') }}
         {% else %}
