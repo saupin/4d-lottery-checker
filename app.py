@@ -945,6 +945,44 @@ def _load_stored_predictions() -> dict | None:
         return None
 
 
+def _load_previous_predictions() -> dict | None:
+    """Load pre-draw predictions from Supabase (backed up before last overwrite)."""
+    if not (_SB_URL and _SB_KEY):
+        return None
+    try:
+        r = _req.get(f"{_SB_URL}/rest/v1/previous_predictions?select=id,data",
+                     headers=_sb_headers(), timeout=5)
+        rows = r.json()
+        if not rows or len(rows) < 4:
+            return None
+        result = {}
+        for row in rows:
+            pred = json.loads(row["data"])
+            result[row["id"]] = pred
+        return result
+    except Exception:
+        return None
+
+
+def _backup_to_previous_predictions() -> None:
+    """Copy current latest_predictions → previous_predictions before overwriting."""
+    if not (_SB_URL and _SB_KEY):
+        return
+    try:
+        r = _req.get(f"{_SB_URL}/rest/v1/latest_predictions?select=id,data",
+                     headers=_sb_headers(), timeout=5)
+        rows = r.json()
+        for row in rows:
+            _req.post(
+                f"{_SB_URL}/rest/v1/previous_predictions",
+                headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates"},
+                json={"id": row["id"], "data": row["data"]},
+                timeout=10,
+            )
+    except Exception:
+        pass
+
+
 @app.route("/predict")
 def predict():
     data      = load_results()
@@ -1512,6 +1550,7 @@ def admin_generate_predictions():
         data      = load_results()
         last_draw = max(data.keys()) if data else ""
         generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+        _backup_to_previous_predictions()
         for lot_key, lot_val in LOTTERY_KEYS.items():
             ranked = _boosted_ranked_scores(data, lot_val)
             nums = [
@@ -1559,9 +1598,10 @@ def admin_trigger_scraper():
         return jsonify({"error": str(ex)}), 502
 
 
-def _prediction_vs_last_draw() -> list[dict]:
+def _prediction_vs_last_draw(stored=None) -> list[dict]:
     """Compare stored predictions against the most recent draw for each lottery."""
-    stored = _load_stored_predictions()
+    if stored is None:
+        stored = _load_stored_predictions()
     if not stored:
         return []
     data = load_results()
@@ -1632,9 +1672,12 @@ def admin_panel():
     if not session.get("is_admin"):
         return redirect(url_for("login_page", next="/admin"))
     reset_msg    = session.pop("reset_msg", None)
-    pred_summary = _prediction_vs_last_draw()
+    prev_summary = _prediction_vs_last_draw(_load_previous_predictions())
+    curr_summary = _prediction_vs_last_draw(_load_stored_predictions())
     return render_template("admin.html", users=_list_users(), active_page=None,
-                           reset_msg=reset_msg, pred_summary=pred_summary)
+                           reset_msg=reset_msg,
+                           prev_summary=prev_summary,
+                           curr_summary=curr_summary)
 
 
 @app.route("/admin/approve/<username>", methods=["POST"])

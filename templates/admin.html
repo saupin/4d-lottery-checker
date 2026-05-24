@@ -1,6 +1,97 @@
 {% extends "base.html" %}
 {% block title %}Admin — 4D Lottery{% endblock %}
 
+{% macro _pred_cards(summary, view_id) %}
+<!-- Summary cards -->
+<div class="d-flex gap-3 flex-wrap mb-3">
+  {% for row in summary %}
+  <div style="flex:1;min-width:120px;background:#0d1117;border:1px solid #2a3a4a;
+              border-radius:8px;padding:.75rem 1rem;text-align:center">
+    <div style="font-size:.65rem;color:#55aacc;font-weight:700;text-transform:uppercase;
+                letter-spacing:.5px;margin-bottom:.5rem">{{ row.label }}</div>
+    <div style="font-size:.68rem;color:#8899aa;margin-bottom:.15rem">Predicted numbers</div>
+    <div style="font-size:1.1rem;font-weight:700;color:#ccc">{{ row.top_n }}</div>
+    <div style="border-top:1px solid #1a2a3a;margin:.5rem 0"></div>
+    <div style="font-size:.68rem;color:#8899aa;margin-bottom:.15rem">Matched in draw</div>
+    <div style="font-size:1.6rem;font-weight:700;line-height:1;
+                color:{% if row.total_hits > 0 %}#22c55e{% else %}#55667a{% endif %}">
+      {{ row.total_hits }}
+    </div>
+    <div style="font-size:.65rem;color:#8899aa;margin-top:.1rem">numbers appeared in the draw</div>
+    <div style="font-size:1rem;font-weight:700;margin-top:.4rem;
+                color:{% if row.total_hits > 0 %}#f5c518{% else %}#55667a{% endif %}">
+      {{ row.match_pct }}% hit rate
+    </div>
+    {% if row.hits_top3 %}
+    <div style="font-size:.65rem;color:#f5c518;margin-top:.3rem;font-weight:700">
+      &#127942; 1st/2nd/3rd:
+      {% for n in row.hits_top3 %}{{ n }}<span style="font-weight:400;opacity:.7">(#{{ row.rank_map[n] }})</span>{% if not loop.last %}, {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+    {% if row.hits_spec or row.hits_cons %}
+    <div style="font-size:.65rem;color:#22c55e;margin-top:.2rem">
+      &#10003; Special/Cons:
+      {% for n in (row.hits_spec + row.hits_cons) %}{{ n }}<span style="font-weight:400;opacity:.7">(#{{ row.rank_map[n] }})</span>{% if not loop.last %}, {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Lottery tabs + 20/250 toggle -->
+<div class="d-flex align-items-center justify-content-between mb-2">
+  <ul class="nav" id="predTabs-{{ view_id }}" style="gap:.3rem;margin:0;padding:0;list-style:none;display:flex">
+    {% for row in summary %}
+    <li>
+      <a href="#" onclick="showPredTab('{{ view_id }}', '{{ row.lot_key }}'); return false"
+         id="ptab-lnk-{{ view_id }}-{{ row.lot_key }}"
+         style="font-size:.72rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none;
+                background:{% if loop.first %}#1d3a5a{% else %}#0d1117{% endif %};
+                color:{% if loop.first %}#55aacc{% else %}#55667a{% endif %};
+                border:1px solid {% if loop.first %}#2a5a8a{% else %}#2a3a4a{% endif %}">
+        {{ row.label }}
+        {% if row.hits_top3 %}<span style="color:#f5c518">●</span>{% endif %}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  <button id="admin-pred-toggle-{{ view_id }}" onclick="toggleAdminPred('{{ view_id }}', this)"
+          style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
+                 padding:.15rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
+    Show all 250
+  </button>
+</div>
+
+{% for row in summary %}
+<div id="predtab-{{ view_id }}-{{ row.lot_key }}" class="pred-tab-{{ view_id }}"
+     style="display:{% if loop.first %}block{% else %}none{% endif %}">
+  <div class="d-flex flex-wrap gap-1">
+    {% set all_hits = (row.hits_top3 + row.hits_spec + row.hits_cons) %}
+    {% for entry in row.top250 %}
+    {% set num     = entry.num %}
+    {% set rank    = entry.rank %}
+    {% set is_top3 = num in row.hits_top3 %}
+    {% set is_hit  = num in all_hits %}
+    <span class="pred-chip-{{ view_id }}{% if loop.index > 20 %} pred-chip-extra-{{ view_id }}{% endif %}"
+          style="font-family:monospace;font-weight:700;text-align:center;padding:.25rem .5rem;border-radius:4px;line-height:1.3;
+                 {% if is_top3 %}background:#3a2a00;border:1px solid #f5c518;color:#f5c518;
+                 {% elif is_hit %}background:#0a2a0a;border:1px solid #22c55e;color:#22c55e;
+                 {% else %}background:#0d1117;border:1px solid #2a3a4a;color:#55667a;{% endif %}
+                 {% if loop.index > 20 %};display:none{% endif %}">
+      <span style="font-size:.88rem">{{ num }}</span><br>
+      <span style="font-size:.56rem;font-weight:400;opacity:.65">#{{ rank }}</span>
+    </span>
+    {% endfor %}
+  </div>
+  <div style="font-size:.68rem;color:#55667a;margin-top:.6rem;display:flex;gap:1rem;flex-wrap:wrap">
+    <span><span style="color:#f5c518;font-weight:700">0000</span> &nbsp;Won 1st / 2nd / 3rd prize</span>
+    <span><span style="color:#22c55e;font-weight:700">0000</span> &nbsp;Won Special or Consolation</span>
+    <span><span style="color:#55667a;font-weight:700">0000</span> &nbsp;Did not appear in draw</span>
+  </div>
+</div>
+{% endfor %}
+{% endmacro %}
+
 {% block header %}
   <h1>&#128272; Admin Panel</h1>
   <p>Manage user registrations and approvals.</p>
@@ -96,111 +187,59 @@
     </div>
   </div>
 
-  {% if pred_summary %}
+  {% if prev_summary or curr_summary %}
   <!-- Prediction vs Last Draw -->
   <div class="col-lg-7 mt-4">
     <div class="section-card">
-      <div class="section-title mb-1">&#128302; Predictions vs Last Draw</div>
-      <div style="font-size:.72rem;color:#55667a;margin-bottom:1rem">
-        Predictions based on <strong style="color:#8899aa">{{ pred_summary[0].based_on }}</strong>
-        draw &mdash; tested against <strong style="color:#f5c518">{{ pred_summary[0].draw_date }}</strong>
-        &mdash; {{ pred_summary[0].gen_at }}
-      </div>
-
-      <!-- Summary cards -->
-      <div class="d-flex gap-3 flex-wrap mb-3">
-        {% for row in pred_summary %}
-        <div style="flex:1;min-width:120px;background:#0d1117;border:1px solid #2a3a4a;
-                    border-radius:8px;padding:.75rem 1rem;text-align:center">
-          <div style="font-size:.65rem;color:#55aacc;font-weight:700;text-transform:uppercase;
-                      letter-spacing:.5px;margin-bottom:.5rem">{{ row.label }}</div>
-          <div style="font-size:.68rem;color:#8899aa;margin-bottom:.15rem">Predicted numbers</div>
-          <div style="font-size:1.1rem;font-weight:700;color:#ccc">{{ row.top_n }}</div>
-
-          <div style="border-top:1px solid #1a2a3a;margin:.5rem 0"></div>
-
-          <div style="font-size:.68rem;color:#8899aa;margin-bottom:.15rem">Matched in draw</div>
-          <div style="font-size:1.6rem;font-weight:700;line-height:1;
-                      color:{% if row.total_hits > 0 %}#22c55e{% else %}#55667a{% endif %}">
-            {{ row.total_hits }}
-          </div>
-          <div style="font-size:.65rem;color:#8899aa;margin-top:.1rem">
-            numbers appeared in the draw
-          </div>
-
-          <div style="font-size:1rem;font-weight:700;margin-top:.4rem;
-                      color:{% if row.total_hits > 0 %}#f5c518{% else %}#55667a{% endif %}">
-            {{ row.match_pct }}% hit rate
-          </div>
-
-          {% if row.hits_top3 %}
-          <div style="font-size:.65rem;color:#f5c518;margin-top:.3rem;font-weight:700">
-            &#127942; 1st/2nd/3rd:
-            {% for n in row.hits_top3 %}{{ n }}<span style="font-weight:400;opacity:.7">(#{{ row.rank_map[n] }})</span>{% if not loop.last %}, {% endif %}{% endfor %}
-          </div>
-          {% endif %}
-          {% if row.hits_spec or row.hits_cons %}
-          <div style="font-size:.65rem;color:#22c55e;margin-top:.2rem">
-            &#10003; Special/Cons:
-            {% for n in (row.hits_spec + row.hits_cons) %}{{ n }}<span style="font-weight:400;opacity:.7">(#{{ row.rank_map[n] }})</span>{% if not loop.last %}, {% endif %}{% endfor %}
-          </div>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-
-      <!-- Top numbers per lottery with hit highlights -->
       <div class="d-flex align-items-center justify-content-between mb-2">
-        <ul class="nav" id="predTabs" style="gap:.3rem;margin:0;padding:0;list-style:none;display:flex">
-          {% for row in pred_summary %}
-          <li>
-            <a href="#" onclick="showPredTab('{{ row.lot_key }}'); return false"
-               id="ptab-lnk-{{ row.lot_key }}"
-               style="font-size:.72rem;padding:.2rem .6rem;border-radius:4px;text-decoration:none;
-                      background:{% if loop.first %}#1d3a5a{% else %}#0d1117{% endif %};
-                      color:{% if loop.first %}#55aacc{% else %}#55667a{% endif %};
-                      border:1px solid {% if loop.first %}#2a5a8a{% else %}#2a3a4a{% endif %}">
-              {{ row.label }}
-              {% if row.hits_top3 %}<span style="color:#f5c518">●</span>{% endif %}
-            </a>
-          </li>
-          {% endfor %}
-        </ul>
-        <button id="admin-pred-toggle" onclick="toggleAdminPred(this)"
-                style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
-                       padding:.15rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
-          Show all 250
-        </button>
+        <div class="section-title mb-0">&#128302; Predictions vs Last Draw</div>
+        <!-- View toggle -->
+        <div style="display:flex;gap:.3rem">
+          <button onclick="switchPredView('prev', this)" id="pred-view-btn-prev"
+                  style="background:#1d3a5a;border:1px solid #2a5a8a;color:#55aacc;border-radius:4px;
+                         padding:.2rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
+            Pre-draw
+          </button>
+          <button onclick="switchPredView('curr', this)" id="pred-view-btn-curr"
+                  style="background:none;border:1px solid #2a3a4a;color:#55667a;border-radius:4px;
+                         padding:.2rem .6rem;font-size:.7rem;cursor:pointer;transition:all .15s">
+            Latest
+          </button>
+        </div>
       </div>
 
-      {% for row in pred_summary %}
-      <div id="predtab-{{ row.lot_key }}" class="pred-tab"
-           style="display:{% if loop.first %}block{% else %}none{% endif %}">
-        <div class="d-flex flex-wrap gap-1">
-          {% set all_hits = (row.hits_top3 + row.hits_spec + row.hits_cons) %}
-          {% for entry in row.top250 %}
-          {% set num     = entry.num %}
-          {% set rank    = entry.rank %}
-          {% set is_top3 = num in row.hits_top3 %}
-          {% set is_hit  = num in all_hits %}
-          <span class="pred-chip{% if loop.index > 20 %} pred-chip-extra{% endif %}"
-                style="font-family:monospace;font-weight:700;text-align:center;padding:.25rem .5rem;border-radius:4px;line-height:1.3;
-                       {% if is_top3 %}background:#3a2a00;border:1px solid #f5c518;color:#f5c518;
-                       {% elif is_hit %}background:#0a2a0a;border:1px solid #22c55e;color:#22c55e;
-                       {% else %}background:#0d1117;border:1px solid #2a3a4a;color:#55667a;{% endif %}
-                       {% if loop.index > 20 %};display:none{% endif %}">
-            <span style="font-size:.88rem">{{ num }}</span><br>
-            <span style="font-size:.56rem;font-weight:400;opacity:.65">#{{ rank }}</span>
-          </span>
-          {% endfor %}
+      <!-- PRE-DRAW VIEW -->
+      <div id="pred-view-prev">
+        {% if prev_summary %}
+        <div style="font-size:.72rem;color:#55667a;margin-bottom:1rem">
+          &#9989; Pre-draw prediction based on <strong style="color:#8899aa">{{ prev_summary[0].based_on }}</strong>
+          &mdash; tested against <strong style="color:#f5c518">{{ prev_summary[0].draw_date }}</strong>
+          &mdash; {{ prev_summary[0].gen_at }}
         </div>
-        <div style="font-size:.68rem;color:#55667a;margin-top:.6rem;display:flex;gap:1rem;flex-wrap:wrap">
-          <span><span style="color:#f5c518;font-weight:700">0000</span> &nbsp;Won 1st / 2nd / 3rd prize</span>
-          <span><span style="color:#22c55e;font-weight:700">0000</span> &nbsp;Won Special or Consolation</span>
-          <span><span style="color:#55667a;font-weight:700">0000</span> &nbsp;Did not appear in draw</span>
+        {{ _pred_cards(prev_summary, 'prev') }}
+        {% else %}
+        <div style="font-size:.82rem;color:#55667a;padding:1.5rem 0;text-align:center">
+          No pre-draw prediction stored yet. Generate predictions after the next draw to populate this.
         </div>
+        {% endif %}
       </div>
-      {% endfor %}
+
+      <!-- LATEST PREDICTION VIEW -->
+      <div id="pred-view-curr" style="display:none">
+        {% if curr_summary %}
+        <div style="font-size:.72rem;color:#55667a;margin-bottom:1rem">
+          &#128336; Latest prediction based on <strong style="color:#8899aa">{{ curr_summary[0].based_on }}</strong>
+          draw &mdash; {{ curr_summary[0].gen_at }}
+          <span style="color:#f5c518;margin-left:.3rem">&#9888; For next draw — hits shown are post-draw only</span>
+        </div>
+        {{ _pred_cards(curr_summary, 'curr') }}
+        {% else %}
+        <div style="font-size:.82rem;color:#55667a;padding:1.5rem 0;text-align:center">
+          No predictions generated yet.
+        </div>
+        {% endif %}
+      </div>
+
     </div>
   </div>
   {% endif %}
@@ -208,26 +247,37 @@
 </div>
 
 <script>
-let _adminPredShowAll = false;
+const _adminPredShowAll = { prev: false, curr: false };
 
-function showPredTab(key) {
-  document.querySelectorAll('.pred-tab').forEach(el => el.style.display = 'none');
-  document.querySelectorAll('#predTabs a').forEach(a => {
+function showPredTab(viewId, key) {
+  document.querySelectorAll(`.pred-tab-${viewId}`).forEach(el => el.style.display = 'none');
+  document.querySelectorAll(`#predTabs-${viewId} a`).forEach(a => {
     a.style.background = '#0d1117'; a.style.color = '#55667a'; a.style.borderColor = '#2a3a4a';
   });
-  document.getElementById('predtab-' + key).style.display = 'block';
-  const lnk = document.getElementById('ptab-lnk-' + key);
+  document.getElementById(`predtab-${viewId}-${key}`).style.display = 'block';
+  const lnk = document.getElementById(`ptab-lnk-${viewId}-${key}`);
   lnk.style.background = '#1d3a5a'; lnk.style.color = '#55aacc'; lnk.style.borderColor = '#2a5a8a';
 }
 
-function toggleAdminPred(btn) {
-  _adminPredShowAll = !_adminPredShowAll;
-  document.querySelectorAll('.pred-chip-extra').forEach(el => {
-    el.style.display = _adminPredShowAll ? '' : 'none';
+function toggleAdminPred(viewId, btn) {
+  _adminPredShowAll[viewId] = !_adminPredShowAll[viewId];
+  const show = _adminPredShowAll[viewId];
+  document.querySelectorAll(`.pred-chip-extra-${viewId}`).forEach(el => {
+    el.style.display = show ? '' : 'none';
   });
-  btn.textContent = _adminPredShowAll ? 'Show 20' : 'Show all 250';
-  btn.style.borderColor = _adminPredShowAll ? '#55aacc' : '#2a3a4a';
-  btn.style.color        = _adminPredShowAll ? '#55aacc' : '#55667a';
+  btn.textContent = show ? 'Show 20' : 'Show all 250';
+  btn.style.borderColor = show ? '#55aacc' : '#2a3a4a';
+  btn.style.color = show ? '#55aacc' : '#55667a';
+}
+
+function switchPredView(viewId, btn) {
+  ['prev', 'curr'].forEach(v => {
+    document.getElementById(`pred-view-${v}`).style.display = v === viewId ? '' : 'none';
+    const b = document.getElementById(`pred-view-btn-${v}`);
+    b.style.background   = v === viewId ? '#1d3a5a' : 'none';
+    b.style.color        = v === viewId ? '#55aacc' : '#55667a';
+    b.style.borderColor  = v === viewId ? '#2a5a8a' : '#2a3a4a';
+  });
 }
 
 async function generatePredictions() {

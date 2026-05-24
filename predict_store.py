@@ -44,6 +44,20 @@ def main():
 
     print(f"Generating top-{TOP_N} predictions based on draw: {last_draw}")
 
+    # Backup current predictions before overwriting
+    if _SB_URL and _SB_KEY:
+        try:
+            r = _req.get(f"{_SB_URL}/rest/v1/latest_predictions?select=id,data",
+                         headers={**_sb_headers(), "apikey": _SB_KEY}, timeout=5)
+            for row in r.json():
+                _req.post(f"{_SB_URL}/rest/v1/previous_predictions",
+                          headers={**_sb_headers(), "apikey": _SB_KEY,
+                                   "Prefer": "resolution=merge-duplicates"},
+                          json={"id": row["id"], "data": row["data"]}, timeout=10)
+            print("  Backed up previous predictions")
+        except Exception as e:
+            print(f"  Warning: backup failed: {e}")
+
     for lot_key, lot_val in LOTTERY_KEYS.items():
         ranked = _boosted_ranked_scores(data, lot_val)
         nums = [
