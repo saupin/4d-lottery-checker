@@ -1069,6 +1069,7 @@ def draws():
                 continue
             prizes = lot.get("prizes", {})
             lotteries.append({
+                "key":         key,
                 "label":       lot.get("label", key.upper()),
                 "draw_number": lot.get("draw_number", ""),
                 "p1": prizes.get("1st", ""),

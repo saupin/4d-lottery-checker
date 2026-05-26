@@ -147,7 +147,7 @@
       <label style="font-size:.78rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px;font-weight:600;display:block;margin-bottom:.5rem">
         Filter by number
       </label>
-      <div class="d-flex gap-2 align-items-center">
+      <div class="d-flex gap-2 align-items-center flex-wrap">
         <input id="drawFilter"
                type="text" inputmode="numeric" pattern="\d{4}" maxlength="4"
                placeholder="0000" autocomplete="off"
@@ -159,6 +159,20 @@
                        padding:.5rem .9rem;font-size:1rem;cursor:pointer;transition:all .15s"
                 onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
                 onmouseout="this.style.borderColor='#2a3f55';this.style.color='#8899aa'">&#10005;</button>
+        <div style="display:flex;flex-direction:column;gap:.25rem;margin-left:.75rem">
+          <label for="lotteryFilter" style="font-size:.72rem;color:#55667a;text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin:0">
+            Lottery
+          </label>
+          <select id="lotteryFilter"
+                  style="background:#0f1923;border:2px solid #2a3f55;color:#fff;font-size:.95rem;
+                         font-weight:600;border-radius:8px;padding:.45rem .7rem;cursor:pointer;
+                         transition:border-color .2s">
+            <option value="all">All</option>
+            <option value="damacai">Damacai</option>
+            <option value="magnum">Magnum</option>
+            <option value="toto">Sports Toto</option>
+          </select>
+        </div>
       </div>
       <div id="filter-count" style="font-size:.78rem;margin-top:.5rem;min-height:1.2em"></div>
 
@@ -181,7 +195,7 @@
       <div class="draw-date-heading">{{ row.date_fmt }}</div>
       <div class="lot-cards">
         {% for lot in row.lotteries %}
-        <div class="lot-unit lot-card">
+        <div class="lot-unit lot-card" data-lottery="{{ lot.key }}">
           <div class="lot-card-header">
             <span class="lot-name">{{ lot.label }}</span>
             <span class="lot-draw">#{{ lot.draw_number }}</span>
@@ -237,6 +251,7 @@
 
 <script>
   const filterInput      = document.getElementById('drawFilter');
+  const lotterySelect    = document.getElementById('lotteryFilter');
   const specialsBtn      = document.getElementById('toggleSpecials');
   const consolationsBtn  = document.getElementById('toggleConsolations');
   let showSpecials       = false;
@@ -246,6 +261,8 @@
     filterInput.value = filterInput.value.replace(/\D/g, '').slice(0, 4);
     applyDrawFilter();
   });
+
+  lotterySelect.addEventListener('change', applyDrawFilter);
 
   specialsBtn.addEventListener('click', e => {
     e.preventDefault();
@@ -267,8 +284,9 @@
   }
 
   function applyDrawFilter() {
-    const q      = filterInput.value.trim();
-    const groups = document.querySelectorAll('.draw-group');
+    const q       = filterInput.value.trim();
+    const lotSel  = lotterySelect.value;
+    const groups  = document.querySelectorAll('.draw-group');
     let matchCount = 0;
 
     groups.forEach(group => {
@@ -282,6 +300,12 @@
         // Show/hide tier blocks according to toggles first
         if (specBlock) specBlock.style.display = showSpecials     ? '' : 'none';
         if (consBlock) consBlock.style.display = showConsolations ? '' : 'none';
+
+        const lotMatch = lotSel === 'all' || unit.dataset.lottery === lotSel;
+        if (!lotMatch) {
+          unit.style.display = 'none';
+          return;
+        }
 
         if (!q) {
           unit.style.display = '';
