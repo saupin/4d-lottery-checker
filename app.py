@@ -4,6 +4,7 @@
 Reads lot_results.json and lets users check a 4-digit number for prizes.
 """
 
+import base64
 import json
 import math
 import os
@@ -1223,7 +1224,20 @@ def feedback_page():
         text      = request.form.get("feedback", "").strip()
         pid_raw   = request.form.get("parent_id", "").strip()
         parent_id = int(pid_raw) if pid_raw.isdigit() else None
-        if not text:
+        image_data = None
+        img_file = request.files.get("image")
+        if img_file and img_file.filename:
+            img_bytes = img_file.read()
+            if len(img_bytes) > 2 * 1024 * 1024:
+                error = "Screenshot must be 2 MB or smaller."
+            elif (img_file.mimetype or "").lower() not in ("image/png", "image/jpeg"):
+                error = "Only PNG or JPEG screenshots are allowed."
+            else:
+                image_data = (f"data:{img_file.mimetype};base64,"
+                              f"{base64.b64encode(img_bytes).decode('ascii')}")
+        if error:
+            pass
+        elif not text:
             error = "Feedback cannot be empty."
         elif len(text) > 500:
             error = "Feedback must be 500 characters or fewer."
@@ -1255,10 +1269,13 @@ def feedback_page():
                     msgs.sort(key=lambda m: m.get("submitted_at") or "")
                     thread_ctx = msgs
             analysis = _analyse_feedback(session["user_id"], text, thread=thread_ctx)
-            _save_feedback(session["user_id"], text, analysis, parent_id=parent_id)
+            _save_feedback(session["user_id"], text, analysis, parent_id=parent_id,
+                           image_data=image_data)
             prefix = (f"↩️ Follow-up from @{session['user_id']} (thread #{parent_id}):"
                       if parent_id else f"💬 New feedback from @{session['user_id']}:")
             parts = [f"{prefix}\n\n\"{text}\""]
+            if image_data:
+                parts.append("\n📎 Screenshot attached")
             if analysis:
                 parts.append(f"\n🤖 Claude's take:\n{analysis}")
             _tg_notify("\n".join(parts))
@@ -2075,7 +2092,8 @@ def api_my_numbers_send_email():
 # ── Feedback storage ──────────────────────────────────────────────────────────
 
 def _save_feedback(user_id: str, text: str, analysis: str = "",
-                   parent_id: int | None = None) -> None:
+                   parent_id: int | None = None,
+                   image_data: str | None = None) -> None:
     now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
     if _SB_URL and _SB_KEY:
         hdrs = {**_sb_headers(), "Prefer": "return=minimal"}
@@ -2084,13 +2102,20 @@ def _save_feedback(user_id: str, text: str, analysis: str = "",
                          "status": "pending"}
         if parent_id:
             payload["parent_id"] = parent_id
+        if image_data:
+            payload["image_data"] = image_data
         try:
             r = _req.post(f"{_SB_URL}/rest/v1/feedback_store",
-                          headers=hdrs, json=payload, timeout=5)
-            if not r.ok and analysis:
-                payload.pop("claude_analysis")
-                _req.post(f"{_SB_URL}/rest/v1/feedback_store",
-                          headers=hdrs, json=payload, timeout=5)
+                          headers=hdrs, json=payload, timeout=10)
+            # Retry without optional columns the table may not have yet.
+            if not r.ok and (image_data or analysis):
+                payload.pop("image_data", None)
+                r = _req.post(f"{_SB_URL}/rest/v1/feedback_store",
+                              headers=hdrs, json=payload, timeout=10)
+                if not r.ok and analysis:
+                    payload.pop("claude_analysis", None)
+                    _req.post(f"{_SB_URL}/rest/v1/feedback_store",
+                              headers=hdrs, json=payload, timeout=10)
         except Exception:
             pass
         return
@@ -2104,7 +2129,8 @@ def _save_feedback(user_id: str, text: str, analysis: str = "",
     items.insert(0, {"id": next_id, "user_id": user_id, "feedback": text,
                      "claude_analysis": analysis, "submitted_at": now,
                      "status": "pending", "parent_id": parent_id,
-                     "admin_reply": None, "reply_at": None, "reply_read": True})
+                     "admin_reply": None, "reply_at": None, "reply_read": True,
+                     "image_data": image_data})
     try:
         with open(_FEEDBACK_FILE, "w", encoding="utf-8") as f:
             json.dump(items, f, indent=2)

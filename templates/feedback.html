@@ -35,7 +35,7 @@
                        font-size:.75rem;margin-left:.5rem">&#10005; cancel</button>
       </div>
 
-      <form method="POST" action="/feedback" id="feedback-form">
+      <form method="POST" action="/feedback" id="feedback-form" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="parent_id"  id="parent_id_field" value="">
 
@@ -54,6 +54,34 @@
                     margin-top:.4rem;margin-bottom:1rem">
           <span id="charCount" style="font-size:.75rem;color:#55667a">0 / 500</span>
           <span id="charWarn"  style="font-size:.72rem;color:#f97316;display:none">Limit reached</span>
+        </div>
+
+        <div style="margin-bottom:1rem">
+          <label for="imageInput"
+                 style="display:inline-flex;align-items:center;gap:.4rem;
+                        background:#0f1923;border:1px dashed #2a3f55;color:#8899aa;
+                        border-radius:8px;padding:.5rem .85rem;font-size:.8rem;
+                        cursor:pointer;transition:border-color .15s,color .15s"
+                 onmouseover="this.style.borderColor='#f5c518';this.style.color='#f5c518'"
+                 onmouseout="this.style.borderColor='#2a3f55';this.style.color='#8899aa'">
+            &#128247; <span id="imageLabel">Attach screenshot (PNG/JPEG, max 2&nbsp;MB)</span>
+          </label>
+          <input type="file" id="imageInput" name="image"
+                 accept="image/png,image/jpeg"
+                 onchange="previewImage(this)"
+                 style="display:none">
+          <div id="imagePreviewWrap" style="display:none;margin-top:.6rem;position:relative;
+                                            background:#0f1923;border:1px solid #2a3f55;
+                                            border-radius:8px;padding:.4rem">
+            <img id="imagePreview" alt="Screenshot preview"
+                 style="max-width:100%;max-height:240px;display:block;border-radius:6px">
+            <button type="button" onclick="clearImage()"
+                    style="position:absolute;top:.3rem;right:.3rem;background:rgba(15,25,35,.85);
+                           border:1px solid #2a3f55;color:#e8eaf0;border-radius:6px;
+                           padding:.1rem .45rem;font-size:.7rem;cursor:pointer">
+              &#10005; remove
+            </button>
+          </div>
         </div>
 
         <button type="submit" class="btn-search" style="width:100%" id="submit-btn">
@@ -93,6 +121,13 @@
       <div style="font-size:.88rem;color:#e8eaf0;line-height:1.6;margin-bottom:.6rem">
         {{ thread.feedback }}
       </div>
+      {% if thread.get('image_data') %}
+      <a href="{{ thread.image_data }}" target="_blank" rel="noopener"
+         style="display:inline-block;margin-bottom:.6rem">
+        <img src="{{ thread.image_data }}" alt="Attached screenshot"
+             style="max-width:100%;max-height:280px;border:1px solid #2a3f55;border-radius:8px">
+      </a>
+      {% endif %}
 
       {% if thread.get('admin_reply') %}
       <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
@@ -134,6 +169,13 @@
         <div style="font-size:.88rem;color:#e8eaf0;line-height:1.6;margin-bottom:.6rem">
           {{ fu.feedback }}
         </div>
+        {% if fu.get('image_data') %}
+        <a href="{{ fu.image_data }}" target="_blank" rel="noopener"
+           style="display:inline-block;margin-bottom:.6rem">
+          <img src="{{ fu.image_data }}" alt="Attached screenshot"
+               style="max-width:100%;max-height:280px;border:1px solid #2a3f55;border-radius:8px">
+        </a>
+        {% endif %}
 
         {% if fu.get('admin_reply') %}
         <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.5rem .75rem;
@@ -180,6 +222,38 @@
     c.textContent  = `${len} / 500`;
     c.style.color  = len >= 500 ? '#f97316' : len >= 450 ? '#f5c518' : '#55667a';
     w.style.display = len >= 500 ? 'inline' : 'none';
+  }
+
+  function previewImage(input) {
+    const file = input.files && input.files[0];
+    if (!file) { clearImage(); return; }
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Screenshot must be 2 MB or smaller.');
+      clearImage();
+      return;
+    }
+    if (!/^image\/(png|jpeg)$/i.test(file.type)) {
+      alert('Only PNG or JPEG screenshots are allowed.');
+      clearImage();
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('imagePreview').src = e.target.result;
+      document.getElementById('imagePreviewWrap').style.display = 'block';
+      document.getElementById('imageLabel').textContent =
+        file.name + ' (' + Math.round(file.size / 1024) + ' KB)';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearImage() {
+    const input = document.getElementById('imageInput');
+    input.value = '';
+    document.getElementById('imagePreviewWrap').style.display = 'none';
+    document.getElementById('imagePreview').src = '';
+    document.getElementById('imageLabel').textContent =
+      'Attach screenshot (PNG/JPEG, max 2 MB)';
   }
 
   function replyTo(btn) {

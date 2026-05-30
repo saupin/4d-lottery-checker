@@ -79,6 +79,15 @@
           {{ item.feedback }}
         </div>
 
+        <!-- Attached screenshot -->
+        {% if item.get('image_data') %}
+        <a href="{{ item.image_data }}" target="_blank" rel="noopener"
+           style="display:inline-block;margin-bottom:.6rem">
+          <img src="{{ item.image_data }}" alt="Attached screenshot"
+               style="max-width:100%;max-height:320px;border:1px solid #2a3f55;border-radius:8px">
+        </a>
+        {% endif %}
+
         <!-- Claude analysis -->
         {% if item.get('claude_analysis') %}
         <div style="background:#0d1b2a;border-left:3px solid #55aacc;padding:.45rem .7rem;
