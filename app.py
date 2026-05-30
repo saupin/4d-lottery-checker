@@ -493,7 +493,8 @@ _predict_cache_mtime: float = 0.0
 def _boosted_ranked_scores(data: dict, lottery: str | None,
                            recency_months: int = 6,
                            recency_weight: int = 3,
-                           pool_size: int = 400) -> list[dict]:
+                           pool_size: int = 400,
+                           _return_meta: bool = False) -> list[dict]:
     """Rank all numbers using full-history model + recency-boosted model combined."""
     from datetime import timedelta
     all_dates  = sorted(data.keys())
@@ -529,6 +530,8 @@ def _boosted_ranked_scores(data: dict, lottery: str | None,
         colour, label   = _colour(r["score_pct"])
         r["colour"]     = colour
         r["label"]      = label
+    if _return_meta:
+        return ranked, meta
     return ranked
 
 
@@ -540,8 +543,12 @@ def _get_predict_cache() -> dict:
         data = load_results()
         cache = {}
         for key, lot in LOTTERY_KEYS.items():
-            ranked = _boosted_ranked_scores(data, lot)
-            cache[key] = {"ranked": ranked, "rank_map": {r["num"]: r for r in ranked}}
+            ranked, full_meta = _boosted_ranked_scores(data, lot, _return_meta=True)
+            cache[key] = {
+                "ranked":        ranked,
+                "rank_map":      {r["num"]: r for r in ranked},
+                "full_rank_map": full_meta,
+            }
         _predict_cache      = cache
         _predict_cache_mtime = mtime
     return _predict_cache
@@ -1026,7 +1033,11 @@ def api_score():
     if lottery not in LOTTERY_KEYS:
         lottery = "all"
     cache = _get_predict_cache()
-    return jsonify(cache[lottery]["rank_map"][number])
+    entry = cache[lottery]["rank_map"].get(number) \
+         or cache[lottery]["full_rank_map"].get(number)
+    if entry is None:
+        return jsonify({"error": "Number not found"}), 404
+    return jsonify(entry)
 
 
 @app.route("/analysis")
