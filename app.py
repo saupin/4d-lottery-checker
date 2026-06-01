@@ -876,21 +876,47 @@ def _colour(score_pct: float) -> tuple[str, str]:
 
 
 def score_number(num: str, model: dict) -> dict:
-    # ── Position frequency score ──────────────────────────────────────────
+    # ── Position frequency score (35%) ───────────────────────────────────
     pos_prob = 1.0
     for i, d in enumerate(num):
         pos_prob *= model["pos_probs"][i].get(d, 0.001)
     pos_norm = min(pos_prob / (0.1 ** 4), 2.5) / 2.5
 
-    # ── Historical frequency ──────────────────────────────────────────────
+    # ── Historical frequency (35%) ────────────────────────────────────────
     count     = model["hist_counts"].get(num, 0)
     hist_norm = count / model["hist_max"]
 
-    # ── Composite: position (50%) + historical frequency (50%) ───────────
-    # Backtested against 217 draws (2025): top-250 gives 51%/52%/45% per lottery
-    composite = 0.50 * pos_norm + 0.50 * hist_norm
+    # ── Digit sum pattern (10%) ───────────────────────────────────────────
+    dsum      = sum(int(d) for d in num)
+    sum_probs = model.get("sum_probs", {})
+    sum_max   = max(sum_probs.values()) if sum_probs else 1
+    sum_norm  = sum_probs.get(dsum, 0) / sum_max if sum_max else 0
 
-    # ── Last-seen (display only, not used in composite) ───────────────────
+    # ── Number pattern — pairs/unique digits (10%) ────────────────────────
+    unique = len(set(num))
+    if unique == 4:
+        pat = "All Different"
+    elif unique == 3:
+        pat = "One Pair"
+    elif unique == 2:
+        pat = "Two Pairs" if max(Counter(num).values()) == 2 else "Three of a Kind"
+    else:
+        pat = "Four of a Kind"
+    pat_probs = model.get("pat_probs", {})
+    pat_max   = max(pat_probs.values()) if pat_probs else 1
+    pat_norm  = pat_probs.get(pat, 0) / pat_max if pat_max else 0
+
+    # ── Even/odd balance (10%) ────────────────────────────────────────────
+    n_even    = sum(1 for d in num if int(d) % 2 == 0)
+    bal_probs = model.get("bal_probs", {})
+    bal_max   = max(bal_probs.values()) if bal_probs else 1
+    bal_norm  = bal_probs.get(n_even, 0) / bal_max if bal_max else 0
+
+    # ── Composite: pos 35% + hist 35% + sum 10% + pattern 10% + balance 10%
+    composite = (0.35 * pos_norm + 0.35 * hist_norm
+               + 0.10 * sum_norm + 0.10 * pat_norm + 0.10 * bal_norm)
+
+    # ── Last-seen (display only) ──────────────────────────────────────────
     today = model["today"]
     if num in model["last_seen"]:
         last          = datetime.strptime(model["last_seen"][num], "%Y-%m-%d").date()
@@ -903,8 +929,10 @@ def score_number(num: str, model: dict) -> dict:
         "composite":    round(composite, 6),
         "pos_norm":     round(pos_norm  * 100, 1),
         "hist_norm":    round(hist_norm * 100, 1),
-        "recency_norm": round(hist_norm * 100, 1),
-        "gap_norm":     0.0,
+        "sum_norm":     round(sum_norm  * 100, 1),
+        "pat_norm":     round(pat_norm  * 100, 1),
+        "bal_norm":     round(bal_norm  * 100, 1),
+        "pat_label":    pat,
         "count":        count,
         "last_seen_fmt": last_seen_fmt,
     }

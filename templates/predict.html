@@ -290,8 +290,11 @@
         : `Won <strong>${data.count}</strong> time${data.count !== 1 ? 's' : ''} in ${LOTTERY_LABELS[selectedLottery]} &bull; last: <strong>${data.last_seen_fmt}</strong>`;
 
       const factors = [
-        { name: 'Historical Frequency (50%)', val: data.hist_norm },
-        { name: 'Position-Digit Pattern (50%)', val: data.pos_norm },
+        { name: 'Position-Digit Pattern (35%)', val: data.pos_norm },
+        { name: 'Historical Frequency (35%)',   val: data.hist_norm },
+        { name: `Digit Sum Pattern (10%) — sum ${data.pat_label ? '' : ''}${Array.from(String(data.num || '')).reduce((a,d)=>a+parseInt(d),0)}`, val: data.sum_norm },
+        { name: `Number Pattern (10%) — ${data.pat_label || ''}`, val: data.pat_norm },
+        { name: 'Even/Odd Balance (10%)',        val: data.bal_norm },
       ];
 
       const factorRows = factors.map(f => `
