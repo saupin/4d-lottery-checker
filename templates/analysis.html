@@ -4,7 +4,7 @@
 
 {% block header %}
   <h1>&#128202; Number Frequency Analysis</h1>
-  <p>Most frequent 1st, 2nd &amp; 3rd prize numbers &mdash; {{ total_dates }} draw date{{ 's' if total_dates != 1 }} analysed</p>
+  <p>All prize numbers (1st, 2nd, 3rd, Special &amp; Consolation) &mdash; {{ total_dates }} draw date{{ 's' if total_dates != 1 }} analysed</p>
 {% endblock %}
 
 {% block content %}
@@ -80,7 +80,7 @@
     <!-- Section 1: Digit Position Frequency -->
     <div class="section-card mt-4">
       <div class="section-title">&#127919; Digit Position Frequency</div>
-      <p class="section-sub">Which digit (0–9) appears most often in each of the 4 positions across all 1st, 2nd &amp; 3rd prizes?</p>
+      <p class="section-sub">Which digit (0–9) appears most often in each of the 4 positions across all prize tiers (1st, 2nd, 3rd, Special &amp; Consolation)?</p>
       <div class="row g-3">
         {% for pos_data in ext.pos_freq %}
         <div class="col-6 col-md-3">
