@@ -665,7 +665,8 @@ def payouts():
 
 def compute_extended_stats(data: dict, lottery: str | None = None) -> dict:
     today = datetime.today().date()
-    tiers = ["1st", "2nd", "3rd"]
+    top_tiers  = ["1st", "2nd", "3rd"]
+    list_tiers = ["special", "consolation"]
     keys = [lottery] if lottery else LOTTERY_ORDER
 
     pos_freq = [{str(d): 0 for d in range(10)} for _ in range(4)]
@@ -675,6 +676,26 @@ def compute_extended_stats(data: dict, lottery: str | None = None) -> dict:
     quads    = set()
     last_seen: dict[str, str] = {}   # number → most recent date string
 
+    def _record(num: str, date_str: str) -> None:
+        if not num or len(num) != 4 or not num.isdigit():
+            return
+        for i, d in enumerate(num):
+            pos_freq[i][d] += 1
+        sum_dist[sum(int(d) for d in num)] += 1
+        balance[sum(1 for d in num if int(d) % 2 == 0)] += 1
+        unique = len(set(num))
+        if unique == 4:
+            pat = "All Different"
+        elif unique == 3:
+            pat = "One Pair"
+        elif unique == 2:
+            pat = "Two Pairs" if max(Counter(num).values()) == 2 else "Three of a Kind"
+        else:
+            pat = "Four of a Kind"
+            quads.add(num)
+        patterns[pat] += 1
+        last_seen[num] = date_str
+
     for date_str in sorted(data.keys()):
         day = data[date_str]
         for key in keys:
@@ -682,31 +703,11 @@ def compute_extended_stats(data: dict, lottery: str | None = None) -> dict:
             if not lot:
                 continue
             prizes = lot.get("prizes", {})
-            for t in tiers:
-                num = prizes.get(t)
-                if not num or len(num) != 4 or not num.isdigit():
-                    continue
-                # Position frequency
-                for i, d in enumerate(num):
-                    pos_freq[i][d] += 1
-                # Digit sum
-                sum_dist[sum(int(d) for d in num)] += 1
-                # Even/odd balance
-                balance[sum(1 for d in num if int(d) % 2 == 0)] += 1
-                # Repeat pattern
-                unique = len(set(num))
-                if unique == 4:
-                    pat = "All Different"
-                elif unique == 3:
-                    pat = "One Pair"
-                elif unique == 2:
-                    pat = "Two Pairs" if max(Counter(num).values()) == 2 else "Three of a Kind"
-                else:
-                    pat = "Four of a Kind"
-                    quads.add(num)
-                patterns[pat] += 1
-                # Hot / cold tracking
-                last_seen[num] = date_str
+            for t in top_tiers:
+                _record(prizes.get(t, ""), date_str)
+            for t in list_tiers:
+                for num in (prizes.get(t) or []):
+                    _record(num, date_str)
 
     total = sum(sum_dist.values())
 
