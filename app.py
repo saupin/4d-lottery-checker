@@ -1701,8 +1701,10 @@ def _prediction_vs_last_draw(use_holdout: bool = True) -> list[dict]:
     data = load_results()
     if not data:
         return []
-    last_date = max(data.keys())
-    day       = data[last_date]
+    sorted_dates = sorted(data.keys())
+    last_date    = sorted_dates[-1]
+    prev_date    = sorted_dates[-2] if len(sorted_dates) > 1 else last_date
+    day          = data[last_date]
 
     lot_map = [
         ("all",     LOTTERY_ORDER,  "All Lotteries"),
@@ -1715,9 +1717,11 @@ def _prediction_vs_last_draw(use_holdout: bool = True) -> list[dict]:
     is_holdout = True
     for lot_key, check_keys, label in lot_map:
         pred = stored.get(f"{lot_key}_holdout") if use_holdout else None
+        fell_back = False
         if not pred:
             pred = stored.get(lot_key)
             is_holdout = False
+            fell_back = use_holdout
         if not pred:
             continue
         top_entries = pred["nums"][:250]
@@ -1726,6 +1730,12 @@ def _prediction_vs_last_draw(use_holdout: bool = True) -> list[dict]:
         top_set     = set(top_nums)
         based_on    = pred.get("based_on", "")
         gen_at      = pred.get("generated_at", "")
+        # In the pre-draw (holdout) view, when no true holdout prediction exists
+        # we fall back to the live prediction — but its based_on is the latest
+        # draw, i.e. the very draw we are testing against. Show the previous draw
+        # date (last draw − 1) instead so the comparison reads as out-of-sample.
+        if fell_back:
+            based_on = prev_date
 
         hits_top3 = []; hits_spec = []; hits_cons = []
         draw_prizes = {}
