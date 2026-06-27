@@ -73,15 +73,36 @@ jobs:
                   f"✅ 4D draw results saved for {draw_date}",
                   "DAMACAI · MAGNUM · SPORTSTOTO are now live.",
               ]
-              summary = "/tmp/predict_summary.txt"
-              if os.path.exists(summary):
+              summary_path = "/tmp/predict_summary.json"
+              if os.path.exists(summary_path):
+                  import json
+                  s      = json.load(open(summary_path))
+                  picks  = s.get("top_picks", {})
+                  stats  = s.get("match_stats", {})
                   labels = {"all": "All", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+                  lot_order = ["all", "damacai", "magnum", "toto"]
+
                   lines.append("")
                   lines.append("🎯 Top 10 predictions for next draw:")
-                  for line in open(summary):
-                      key, _, nums = line.strip().partition("=")
-                      label = labels.get(key, key)
-                      lines.append(f"{label}: {nums}")
+                  for key in lot_order:
+                      nums = picks.get(key, [])
+                      if nums:
+                          lines.append(f"{labels[key]}: {' '.join(nums)}")
+
+                  if stats:
+                      lines.append("")
+                      lines.append("📊 Prediction accuracy (holdout vs today's draw):")
+                      for key in ["damacai", "magnum", "toto"]:
+                          m = stats.get(key)
+                          if not m:
+                              continue
+                          def tick(v):
+                              return "✅" if v else ("❌" if v is False else "–")
+                          spec = f"{m['spec_hits']}/{m['spec_total']} spec"
+                          cons = f"{m['cons_hits']}/{m['cons_total']} cons"
+                          lines.append(
+                              f"{labels[key]}: 1st {tick(m['1st'])} 2nd {tick(m['2nd'])} 3rd {tick(m['3rd'])} | {spec} · {cons}"
+                          )
           else:
               today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
               lines = [f"ℹ️ No draw today ({today}) — no new results to save."]

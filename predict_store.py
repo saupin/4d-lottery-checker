@@ -105,7 +105,8 @@ def main():
         except Exception as e:
             print(f"  Warning: backup failed: {e}")
 
-    top_picks = {}
+    top_picks   = {}
+    match_stats = {}
 
     for lot_key, lot_val in LOTTERY_KEYS.items():
         # Live predictions — for users picking next-draw bets
@@ -130,11 +131,29 @@ def main():
             status_ho = _upsert(f"{lot_key}_holdout", payload_ho)
             print(f"  {lot_key:8s}: holdout → {status_ho}")
 
-    # Write top-10 summary for Telegram notification
+            # Compare holdout predictions vs actual last draw (out-of-sample check)
+            if lot_key != "all":
+                ho_set   = {r["num"] for r in ranked_ho[:250]}
+                prizes   = (data[last_draw].get(lot_key) or {}).get("prizes", {})
+                first    = prizes.get("1st", "") or ""
+                second   = prizes.get("2nd", "") or ""
+                third    = prizes.get("3rd", "") or ""
+                special  = prizes.get("special",    []) or []
+                consol   = prizes.get("consolation", []) or []
+                match_stats[lot_key] = {
+                    "1st":        first  in ho_set if first  else None,
+                    "2nd":        second in ho_set if second else None,
+                    "3rd":        third  in ho_set if third  else None,
+                    "spec_hits":  sum(1 for n in special if n in ho_set),
+                    "spec_total": len(special),
+                    "cons_hits":  sum(1 for n in consol  if n in ho_set),
+                    "cons_total": len(consol),
+                }
+
+    # Write summary JSON for Telegram notification
     try:
-        with open("/tmp/predict_summary.txt", "w") as f:
-            for key, nums in top_picks.items():
-                f.write(f"{key}={' '.join(nums)}\n")
+        with open("/tmp/predict_summary.json", "w") as f:
+            json.dump({"draw_date": last_draw, "top_picks": top_picks, "match_stats": match_stats}, f)
     except Exception as e:
         print(f"  Warning: could not write summary: {e}")
 
