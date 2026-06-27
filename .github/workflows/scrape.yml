@@ -96,12 +96,21 @@ jobs:
                           m = stats.get(key)
                           if not m:
                               continue
-                          def tick(v):
-                              return "✅" if v else ("❌" if v is False else "–")
-                          spec = f"{m['spec_hits']}/{m['spec_total']} spec"
-                          cons = f"{m['cons_hits']}/{m['cons_total']} cons"
+                          def tick(hit, num):
+                              if hit:   return f"✅({num})"
+                              if hit is False: return "❌"
+                              return "–"
+                          t1 = tick(m["1st"], m.get("actual_1st", ""))
+                          t2 = tick(m["2nd"], m.get("actual_2nd", ""))
+                          t3 = tick(m["3rd"], m.get("actual_3rd", ""))
+                          sh, st = m["spec_hits"], m["spec_total"]
+                          ch, ct = m["cons_hits"], m["cons_total"]
+                          sm = m.get("spec_matched", [])
+                          cm = m.get("cons_matched", [])
+                          spec = f"🟢{sh}/{st} spec ({'·'.join(sm)})" if sh else f"{sh}/{st} spec"
+                          cons = f"🟢{ch}/{ct} cons ({'·'.join(cm)})" if ch else f"{ch}/{ct} cons"
                           lines.append(
-                              f"{labels[key]}: 1st {tick(m['1st'])} 2nd {tick(m['2nd'])} 3rd {tick(m['3rd'])} | {spec} · {cons}"
+                              f"{labels[key]}: 1st {t1} 2nd {t2} 3rd {t3} | {spec} · {cons}"
                           )
           else:
               today = datetime.now(timezone.utc).strftime("%Y-%m-%d")

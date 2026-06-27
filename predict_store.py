@@ -141,13 +141,18 @@ def main():
                 special  = prizes.get("special",    []) or []
                 consol   = prizes.get("consolation", []) or []
                 match_stats[lot_key] = {
-                    "1st":        first  in ho_set if first  else None,
-                    "2nd":        second in ho_set if second else None,
-                    "3rd":        third  in ho_set if third  else None,
-                    "spec_hits":  sum(1 for n in special if n in ho_set),
-                    "spec_total": len(special),
-                    "cons_hits":  sum(1 for n in consol  if n in ho_set),
-                    "cons_total": len(consol),
+                    "1st":          first  in ho_set if first  else None,
+                    "2nd":          second in ho_set if second else None,
+                    "3rd":          third  in ho_set if third  else None,
+                    "actual_1st":   first,
+                    "actual_2nd":   second,
+                    "actual_3rd":   third,
+                    "spec_hits":    sum(1 for n in special if n in ho_set),
+                    "spec_total":   len(special),
+                    "spec_matched": [n for n in special if n in ho_set],
+                    "cons_hits":    sum(1 for n in consol  if n in ho_set),
+                    "cons_total":   len(consol),
+                    "cons_matched": [n for n in consol  if n in ho_set],
                 }
 
     # Write summary JSON for Telegram notification
