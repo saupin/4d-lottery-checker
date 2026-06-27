@@ -56,17 +56,41 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+          NEW_RESULTS: ${{ steps.commit.outputs.new_results }}
+          DRAW_DATE:   ${{ steps.commit.outputs.draw_date }}
         run: |
-          TODAY=$(date -u +"%Y-%m-%d")
-          if [ "${{ steps.commit.outputs.new_results }}" == "true" ]; then
-            DATE="${{ steps.commit.outputs.draw_date }}"
-            MSG="✅ 4D draw results saved for ${DATE}%0ADAMACAI · MAGNUM · SPORTSTOTO are now live."
-          else
-            MSG="ℹ️ No draw today (${TODAY}) — no new results to save."
-          fi
-          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-            -d chat_id="${CHAT_ID}" \
-            -d text="${MSG}"
+          python3 - <<'EOF'
+          import os, requests
+          from datetime import datetime, timezone
+
+          bot_token   = os.environ["BOT_TOKEN"]
+          chat_id     = os.environ["CHAT_ID"]
+          new_results = os.environ.get("NEW_RESULTS") == "true"
+          draw_date   = os.environ.get("DRAW_DATE", "")
+
+          if new_results:
+              lines = [
+                  f"✅ 4D draw results saved for {draw_date}",
+                  "DAMACAI · MAGNUM · SPORTSTOTO are now live.",
+              ]
+              summary = "/tmp/predict_summary.txt"
+              if os.path.exists(summary):
+                  labels = {"all": "All", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+                  lines.append("")
+                  lines.append("🎯 Top 10 predictions for next draw:")
+                  for line in open(summary):
+                      key, _, nums = line.strip().partition("=")
+                      label = labels.get(key, key)
+                      lines.append(f"{label}: {nums}")
+          else:
+              today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+              lines = [f"ℹ️ No draw today ({today}) — no new results to save."]
+
+          requests.post(
+              f"https://api.telegram.org/bot{bot_token}/sendMessage",
+              json={"chat_id": chat_id, "text": "\n".join(lines)},
+          )
+          EOF
 
       - name: Notify Telegram on failure
         if: failure()

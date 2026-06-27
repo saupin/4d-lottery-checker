@@ -105,9 +105,12 @@ def main():
         except Exception as e:
             print(f"  Warning: backup failed: {e}")
 
+    top_picks = {}
+
     for lot_key, lot_val in LOTTERY_KEYS.items():
         # Live predictions — for users picking next-draw bets
         ranked_live = _boosted_ranked_scores(data, lot_val)
+        top_picks[lot_key] = [r["num"] for r in ranked_live[:10]]
         payload_live = {
             "based_on":     last_draw,
             "generated_at": generated_at,
@@ -126,6 +129,14 @@ def main():
             }
             status_ho = _upsert(f"{lot_key}_holdout", payload_ho)
             print(f"  {lot_key:8s}: holdout → {status_ho}")
+
+    # Write top-10 summary for Telegram notification
+    try:
+        with open("/tmp/predict_summary.txt", "w") as f:
+            for key, nums in top_picks.items():
+                f.write(f"{key}={' '.join(nums)}\n")
+    except Exception as e:
+        print(f"  Warning: could not write summary: {e}")
 
     print("Done.")
 
