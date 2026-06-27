@@ -1,0 +1,91 @@
+name: Test Telegram Notification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 flask werkzeug
+
+      - name: Generate predictions and summary
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SECRET_KEY:   predict-store-dummy
+        run: python predict_store.py
+
+      - name: Send test Telegram notification
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python3 - <<'EOF'
+          import os, json, requests
+
+          bot_token = os.environ["BOT_TOKEN"]
+          chat_id   = os.environ["CHAT_ID"]
+          draw_date = "2026-06-25"
+
+          lines = [
+              f"✅ [TEST] 4D draw results saved for {draw_date}",
+              "DAMACAI · MAGNUM · SPORTSTOTO are now live.",
+          ]
+
+          summary_path = "/tmp/predict_summary.json"
+          if os.path.exists(summary_path):
+              s      = json.load(open(summary_path))
+              picks  = s.get("top_picks", {})
+              stats  = s.get("match_stats", {})
+              labels = {"all": "All", "damacai": "DAMACAI", "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+              lot_order = ["all", "damacai", "magnum", "toto"]
+
+              lines.append("")
+              lines.append("🎯 Top 10 predictions for next draw:")
+              for key in lot_order:
+                  nums = picks.get(key, [])
+                  if nums:
+                      lines.append(f"{labels[key]}: {' '.join(nums)}")
+
+              if stats:
+                  lines.append("")
+                  lines.append("📊 Prediction accuracy (holdout vs today's draw):")
+                  for key in ["damacai", "magnum", "toto"]:
+                      m = stats.get(key)
+                      if not m:
+                          continue
+                      def tick(hit, num):
+                          if hit:          return f"✅({num})"
+                          if hit is False: return "❌"
+                          return "–"
+                      t1 = tick(m["1st"], m.get("actual_1st", ""))
+                      t2 = tick(m["2nd"], m.get("actual_2nd", ""))
+                      t3 = tick(m["3rd"], m.get("actual_3rd", ""))
+                      sh, st = m["spec_hits"], m["spec_total"]
+                      ch, ct = m["cons_hits"], m["cons_total"]
+                      sm = m.get("spec_matched", [])
+                      cm = m.get("cons_matched", [])
+                      spec = f"🟢{sh}/{st} spec ({'·'.join(sm)})" if sh else f"{sh}/{st} spec"
+                      cons = f"🟢{ch}/{ct} cons ({'·'.join(cm)})" if ch else f"{ch}/{ct} cons"
+                      lines.append(
+                          f"{labels[key]}: 1st {t1} 2nd {t2} 3rd {t3} | {spec} · {cons}"
+                      )
+          else:
+              lines.append("")
+              lines.append("⚠️ No prediction summary found.")
+
+          r = requests.post(
+              f"https://api.telegram.org/bot{bot_token}/sendMessage",
+              json={"chat_id": chat_id, "text": "\n".join(lines)},
+          )
+          print(f"Telegram: {r.status_code} {r.text}")
+          EOF
