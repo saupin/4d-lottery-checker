@@ -25,7 +25,7 @@
     margin: 0 0 .15rem;
   }
   .payout-card .payout-sub {
-    color: #8899aa;
+    color: var(--text-dim);
     font-size: .78rem;
     margin-bottom: .9rem;
   }
@@ -41,17 +41,18 @@
     margin-right: .55rem;
     vertical-align: middle;
   }
+  /* Dark like the rest of the app — this table was the last white island. */
   .payout-table {
     width: 100%;
-    background: #ffffff;
+    background: var(--bg);
     border-radius: 8px;
     overflow: hidden;
-    border: 1px solid #dddddd;
+    border: 1px solid var(--border);
     margin-top: .35rem;
   }
   .payout-table thead th {
-    background: #e8e8e8;
-    color: #333;
+    background: #1d2a3b;
+    color: var(--text-mid);
     font-size: .78rem;
     letter-spacing: .5px;
     text-transform: uppercase;
@@ -59,16 +60,17 @@
     border: none;
   }
   .payout-table tbody td {
-    color: #000;
+    color: var(--text);
     font-size: .9rem;
     padding: .5rem .8rem;
-    border-top: 1px solid #eee;
-    background: #fff;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+    transition: background .15s;
   }
-  .payout-table tbody tr:hover td { background: #fff8d8; }
+  .payout-table tbody tr:hover td { background: var(--surface-2); }
   .payout-tier { font-weight: 600; }
-  .payout-amt  { font-family: monospace; font-weight: 700; color: #c8960a; text-align: right; }
-  .payout-amt.small { color: #1e7e34; }
+  .payout-amt  { font-family: monospace; font-weight: 700; color: var(--gold); text-align: right; }
+  .payout-amt.small { color: #6fd190; }
 
   .bet-heading {
     color: #aabbcc;
@@ -84,7 +86,7 @@
     border: 1px dashed #2a3f55;
     border-radius: 10px;
     padding: .85rem 1rem;
-    color: #8899aa;
+    color: var(--text-dim);
     font-size: .82rem;
     line-height: 1.55;
   }

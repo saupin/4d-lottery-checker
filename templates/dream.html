@@ -3,7 +3,7 @@
 {% block title %}4D Lottery — Dream Numbers{% endblock %}
 
 {% block header %}
-  <h1>&#128302; Dream Number Lookup</h1>
+  <h1>&#127769; Dream Number Lookup</h1>
   <p>Describe your dream or unusual encounter &mdash; get traditional Malaysian 4D lucky numbers &mdash; next draw: <strong style="color:#f5c518">{{ next_draw }}</strong></p>
 {% endblock %}
 
@@ -78,8 +78,9 @@
       <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">Track numbers against</label>
       <div class="d-flex gap-2 flex-wrap mb-3">
         {% for key, label in [('all','All'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
-        <span class="filter-pill {% if key == 'all' %}active{% endif %}"
-              id="dl-{{ key }}" onclick="selectLot('{{ key }}')">{{ label }}</span>
+        <button type="button" class="filter-pill {% if key == 'all' %}active{% endif %}"
+                aria-pressed="{{ 'true' if key == 'all' else 'false' }}"
+                id="dl-{{ key }}" onclick="selectLot('{{ key }}')">{{ label }}</button>
         {% endfor %}
       </div>
 
@@ -155,8 +156,12 @@
 
   function selectLot(key) {
     selectedLot = key;
-    document.querySelectorAll('[id^="dl-"]').forEach(el => el.classList.remove('active'));
-    document.getElementById('dl-' + key).classList.add('active');
+    document.querySelectorAll('[id^="dl-"]').forEach(el => {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    const selEl = document.getElementById('dl-' + key);
+    if (selEl) { selEl.classList.add('active'); selEl.setAttribute('aria-pressed', 'true'); }
     saveDreamState();
   }
 
