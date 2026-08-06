@@ -440,6 +440,19 @@ a.prize-link:hover, a.prize-link:focus-visible { color: var(--gold); text-decora
 .btn-track:hover { background: rgba(245,197,24,.22); }
 
 /* ══ Draws page ══ */
+/* Number filter. The border lives here rather than inline: an inline
+   `border` declaration outranks any stylesheet rule, so the old
+   `#drawFilter:focus` never actually fired on master. Placeholder gets the
+   same contrast lift as every other field (was a near-invisible #2a3f55). */
+.draw-filter-input {
+  background: var(--bg); border: 2px solid var(--border-2); color: #fff;
+  font-size: 1.6rem; font-weight: 700; letter-spacing: .6rem;
+  text-align: center; border-radius: 8px; padding: .4rem .8rem;
+  width: 140px; transition: border-color .2s;
+}
+.draw-filter-input:focus { outline: none; border-color: var(--gold); }
+.draw-filter-input::placeholder { color: #4a627d; letter-spacing: .3rem; }
+
 .tier-toggle {
   background: #1f2e40; color: var(--text-dim); border: 1px solid var(--border-2);
   border-radius: 20px; padding: .25rem .85rem; font-size: .76rem;

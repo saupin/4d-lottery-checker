@@ -20,12 +20,9 @@
         Filter by number
       </label>
       <div class="d-flex gap-2 align-items-center flex-wrap">
-        <input id="drawFilter"
+        <input id="drawFilter" class="draw-filter-input"
                type="text" inputmode="numeric" pattern="\d{4}" maxlength="4"
-               placeholder="0000" autocomplete="off"
-               style="background:#0f1923;border:2px solid #2a3f55;color:#fff;font-size:1.6rem;
-                      font-weight:700;letter-spacing:.6rem;text-align:center;border-radius:8px;
-                      padding:.4rem .8rem;width:140px;transition:border-color .2s" />
+               placeholder="0000" autocomplete="off" />
         <button type="button" onclick="clearFilter()" title="Clear" aria-label="Clear number filter"
                 style="background:#1f2e40;color:#8899aa;border:2px solid #2a3f55;border-radius:8px;
                        padding:.5rem .9rem;font-size:1rem;cursor:pointer;transition:all .15s"
