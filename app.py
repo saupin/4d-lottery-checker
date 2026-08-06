@@ -650,7 +650,15 @@ def index():
     data = load_results()
     recent = latest_draws(data)
     total_dates = len(data)
-    return render_template("index.html", recent=recent, total_dates=total_dates, active_page="results")
+    # Freshness signals — "are these results current?" is the first question
+    # a results checker has to answer. next_draw is already given to
+    # predict/dream/simulate; the home page needs it most of all.
+    latest_date = max(data) if data else ""
+    latest_fmt = (datetime.strptime(latest_date, "%Y-%m-%d").strftime("%a, %d %b %Y")
+                  if latest_date else "")
+    return render_template("index.html", recent=recent, total_dates=total_dates,
+                           latest_draw=latest_fmt, next_draw=next_draw_date(),
+                           active_page="results")
 
 
 @app.route("/payouts")

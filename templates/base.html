@@ -4,431 +4,63 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}4D Lottery Checker{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}Check any Malaysian 4D number against DAMACAI, MAGNUM and SPORTSTOTO results across every prize tier — 1st, 2nd, 3rd, Special and Consolation.{% endblock %}" />
+  <meta name="theme-color" content="#0f1923" />
+  <meta property="og:title" content="{% block og_title %}4D Lottery Checker{% endblock %}" />
+  <meta property="og:description" content="Check your 4D number against DAMACAI, MAGNUM and SPORTSTOTO results — all prize tiers." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-  <style>
-    :root {
-      --gold:   #f5c518;
-      --silver: #a8a9ad;
-      --bronze: #cd7f32;
-    }
-    body { background: #0f1923; color: #e8eaf0; font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
-
-    /* ── Top nav ── */
-    .top-nav {
-      background: #0d1b2a;
-      border-bottom: 1px solid #1e3048;
-      padding: .4rem 0;
-    }
-    .top-nav .nav-link {
-      color: #8899aa; font-size: .88rem; font-weight: 600;
-      letter-spacing: .5px; padding: .35rem .9rem; border-radius: 6px;
-      transition: color .15s, background .15s;
-    }
-    .top-nav .nav-link:hover { color: #f5c518; background: rgba(245,197,24,.08); }
-    .top-nav .nav-link.active { color: #f5c518; border-bottom: 2px solid #f5c518; border-radius: 0; }
-
-    /* ── Site header ── */
-    .site-header {
-      background: linear-gradient(135deg, #1a2a3a 0%, #0d1b2a 100%);
-      border-bottom: 2px solid #f5c518;
-      padding: 1.5rem 0 1.2rem;
-    }
-    .site-header h1 { font-size: 1.8rem; font-weight: 700; color: #f5c518; letter-spacing: .5px; }
-    .site-header p  { color: #8899aa; font-size: .88rem; margin: 0; }
-
-    /* ── Search card ── */
-    .search-card {
-      background: #172130;
-      border: 1px solid #243447;
-      border-radius: 14px;
-      padding: 2rem;
-    }
-    .search-card label { font-weight: 600; color: #aabbcc; font-size: .85rem; letter-spacing: .8px; text-transform: uppercase; }
-    .number-input {
-      background: #0f1923;
-      border: 2px solid #2a3f55;
-      color: #fff;
-      font-size: 2.4rem;
-      font-weight: 700;
-      letter-spacing: 1rem;
-      text-align: center;
-      border-radius: 10px;
-      padding: .6rem 1rem;
-      width: 100%;
-      transition: border-color .2s;
-    }
-    .number-input:focus { outline: none; border-color: #f5c518; background: #0f1923; color: #fff; }
-    .number-input::placeholder { color: #2a3f55; letter-spacing: .5rem; }
-    .btn-search {
-      background: #f5c518; color: #0f1923; font-weight: 700;
-      border: none; border-radius: 8px; padding: .7rem 2.5rem;
-      font-size: 1rem; transition: background .15s, transform .1s;
-    }
-    .btn-search:hover  { background: #ffd740; transform: translateY(-1px); }
-    .btn-search:active { transform: translateY(0); }
-    .btn-clear {
-      background: #1f2e40; color: #8899aa; border: 2px solid #2a3f55;
-      border-radius: 8px; padding: .7rem 1rem; font-size: 1rem;
-      cursor: pointer; transition: all .15s;
-    }
-    .btn-clear:hover { border-color: #f5c518; color: #f5c518; }
-
-    /* ── Result badges ── */
-    .prize-badge {
-      display: inline-block; border-radius: 6px; font-size: .75rem;
-      font-weight: 700; padding: .25rem .65rem; letter-spacing: .4px; text-transform: uppercase;
-    }
-    .prize-1st         { background: var(--gold);   color: #0f1923; }
-    .prize-2nd         { background: var(--silver); color: #0f1923; }
-    .prize-3rd         { background: var(--bronze); color: #fff; }
-    .prize-special     { background: #1e7e34;       color: #fff; }
-    .prize-consolation { background: #155fa0;       color: #fff; }
-
-    /* ── Match result card ── */
-    .match-card {
-      background: #ffffff; border: 1px solid #dddddd; border-radius: 10px;
-      padding: 1rem 1.25rem; margin-bottom: .75rem;
-      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
-      transition: background .15s, color .15s;
-    }
-    .match-card:hover { background: #000000; }
-    .match-date    { font-size: .82rem; color: #444444; min-width: 130px; transition: color .15s; }
-    .match-lottery { font-weight: 700; font-size: 1rem; color: #000000; min-width: 100px; transition: color .15s; }
-    .match-draw    { font-size: .8rem; color: #555555; transition: color .15s; }
-    .match-card:hover .match-date,
-    .match-card:hover .match-lottery,
-    .match-card:hover .match-draw { color: #ffffff; }
-
-    /* ── No match ── */
-    .no-match { text-align: center; padding: 2rem; color: #8899aa; }
-    .no-match .icon { font-size: 2.5rem; }
-
-    /* ── Latest draws table ── */
-    .draws-section h5 { color: #aabbcc; font-size: .85rem; letter-spacing: .8px; text-transform: uppercase; font-weight: 600; }
-    .draw-table { background: #ffffff; border-radius: 10px; overflow: hidden; border: 1px solid #dddddd; }
-    .draw-table thead th { background: #e8e8e8; color: #333333; font-size: .8rem; letter-spacing: .5px; border: none; padding: .6rem 1rem; }
-    .draw-table tbody td { border-color: #dddddd; color: #000000; font-size: .88rem; padding: .5rem 1rem; vertical-align: middle; background: #ffffff; transition: background .15s, color .15s; }
-    .draw-table tbody tr:hover td { background: #000000 !important; color: #ffffff !important; }
-    .lottery-name { font-weight: 700; font-size: .85rem; }
-    .prize-num    { font-family: monospace; font-size: .95rem; font-weight: 600; color: #c8960a; }
-    .draw-table tbody tr:hover .prize-num  { color: #f5c518; }
-    .special-nums { font-size: .78rem; color: #336699; font-family: monospace; }
-    .draw-table tbody tr:hover .special-nums { color: #88aacc; }
-    a.prize-link { color: inherit; text-decoration: none; }
-    a.prize-link:hover { color: #f5c518 !important; text-decoration: underline; }
-    .draw-table tbody tr:hover a.prize-link { color: #f5c518; }
-
-    /* ── Spinner ── */
-    #spinner { display: none; }
-    .spin { width: 1.4rem; height: 1.4rem; border: 3px solid #2a3f55; border-top-color: #f5c518;
-            border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Alert ── */
-    .alert-result { border-radius: 10px; font-weight: 600; }
-
-    /* ── Filter bar ── */
-    .filter-bar {
-      background: #ffffff; border: 1px solid #dddddd; border-radius: 10px;
-      padding: .85rem 1rem; margin-bottom: .75rem;
-    }
-    .filter-group { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .5rem; }
-    .filter-group:last-child { margin-bottom: 0; }
-    .filter-label { font-size: .75rem; color: #555555; font-weight: 600; letter-spacing: .5px;
-                    text-transform: uppercase; min-width: 52px; }
-    .filter-pill {
-      background: #f0f0f0; border: 1px solid #cccccc; color: #555555;
-      border-radius: 20px; padding: .2rem .7rem; font-size: .75rem; font-weight: 600;
-      cursor: pointer; transition: all .15s; user-select: none;
-    }
-    .filter-pill.active { background: #000000; border-color: #000000; color: #ffffff; }
-    .filter-pill:hover  { background: #555555; border-color: #555555; color: #ffffff; }
-    .filter-pill.active:hover { background: #333333; border-color: #333333; }
-    .filter-select {
-      background: #f0f0f0; border: 1px solid #cccccc; color: #000000;
-      border-radius: 6px; padding: .2rem .5rem; font-size: .78rem; cursor: pointer;
-    }
-    .filter-select:focus { outline: none; border-color: #000000; }
-    .match-count { font-size: .78rem; color: #555555; margin-top: .4rem; }
-
-    /* ── Analysis page ── */
-    .stat-card {
-      background: #172130; border: 1px solid #243447; border-radius: 10px;
-      padding: 1rem;
-    }
-    .stat-card h6 {
-      font-size: .78rem; letter-spacing: .8px; text-transform: uppercase;
-      font-weight: 700; margin-bottom: .75rem; padding-bottom: .5rem;
-      border-bottom: 2px solid;
-    }
-    .stat-card.tier-1st h6 { color: var(--gold);   border-color: var(--gold); }
-    .stat-card.tier-2nd h6 { color: var(--silver); border-color: var(--silver); }
-    .stat-card.tier-3rd h6 { color: var(--bronze); border-color: var(--bronze); }
-
-    .stat-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .4rem; }
-    .stat-rank { font-size: .7rem; color: #55667a; width: 18px; text-align: right; flex-shrink: 0; }
-    .stat-num  { font-family: monospace; font-weight: 700; font-size: .95rem; color: #e8eaf0; width: 36px; flex-shrink: 0; }
-    .stat-bar-wrap { flex: 1; background: #0f1923; border-radius: 4px; height: 6px; overflow: hidden; }
-    .stat-bar { height: 100%; border-radius: 4px; }
-    .tier-1st .stat-bar { background: var(--gold); }
-    .tier-2nd .stat-bar { background: var(--silver); }
-    .tier-3rd .stat-bar { background: var(--bronze); }
-    .stat-count { font-size: .72rem; color: #8899aa; width: 28px; text-align: right; flex-shrink: 0; }
-
-    .summary-pill {
-      background: #172130; border: 1px solid #243447; border-radius: 8px;
-      padding: .6rem 1.2rem; text-align: center;
-    }
-    .summary-pill .val { font-size: 1.4rem; font-weight: 700; color: #f5c518; }
-    .summary-pill .lbl { font-size: .72rem; color: #8899aa; text-transform: uppercase; letter-spacing: .5px; }
-
-    .analysis-tabs .nav-link {
-      color: #8899aa; font-size: .82rem; font-weight: 600; border-radius: 6px 6px 0 0;
-      border: 1px solid transparent; padding: .4rem .9rem;
-    }
-    .analysis-tabs .nav-link:hover { color: #f5c518; }
-    .analysis-tabs .nav-link.active {
-      background: #172130; border-color: #243447 #243447 #172130;
-      color: #f5c518;
-    }
-    .tab-content { background: #172130; border: 1px solid #243447; border-radius: 0 6px 6px 6px; padding: 1.25rem; }
-
-    /* ── Extended analysis sections ── */
-    .section-card {
-      background: #172130; border: 1px solid #243447; border-radius: 10px; padding: 1.25rem;
-    }
-    .section-title { font-size: .95rem; font-weight: 700; color: #f5c518; margin-bottom: .25rem; }
-    .section-sub   { font-size: .78rem; color: #8899aa; margin-bottom: 1rem; }
-
-    /* Position frequency */
-    .pos-card { background: #0f1923; border-radius: 8px; padding: .75rem; }
-    .pos-heading { font-size: .72rem; font-weight: 700; color: #55aacc; text-transform: uppercase;
-                   letter-spacing: .6px; margin-bottom: .6rem; }
-    .pos-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
-    .pos-digit { font-family: monospace; font-weight: 700; font-size: .88rem; color: #e8eaf0; width: 14px; }
-    .pos-bar-wrap { flex: 1; background: #172130; border-radius: 3px; height: 5px; overflow: hidden; }
-    .pos-bar { height: 100%; border-radius: 3px; background: #f5c518; }
-    .pos-pct { font-size: .68rem; color: #8899aa; width: 34px; text-align: right; }
-
-    /* Hot & Cold */
-    .hc-row { display: flex; align-items: center; gap: .6rem; padding: .35rem 0;
-               border-bottom: 1px solid #1e3048; }
-    .hc-row:last-child { border-bottom: none; }
-    .hc-num  { font-family: monospace; font-weight: 700; font-size: 1rem; color: #e8eaf0; width: 36px; }
-    .hc-date { font-size: .75rem; color: #8899aa; flex: 1; }
-    .hc-badge { font-size: .68rem; font-weight: 700; border-radius: 20px; padding: .15rem .55rem; }
-    .hot-badge  { background: rgba(30,126,52,.25); color: #5dbb7f; border: 1px solid #1e7e34; }
-    .cold-badge { background: rgba(21,95,160,.25); color: #6ab0e8; border: 1px solid #155fa0; }
-
-    /* Digit sum chart */
-    .sum-chart { display: flex; align-items: flex-end; gap: 2px; height: 100px;
-                 padding-bottom: 20px; position: relative; overflow-x: auto; }
-    .sum-col { display: flex; flex-direction: column; align-items: center;
-               justify-content: flex-end; flex: 1; min-width: 18px; height: 100%; }
-    .sum-bar { width: 100%; border-radius: 3px 3px 0 0; background: #2a5080; min-height: 1px;
-               transition: background .2s; }
-    .sum-bar:hover { background: #3a70b0; }
-    .sum-peak { background: #f5c518 !important; }
-    .sum-label { font-size: .6rem; color: #55667a; margin-top: 3px; }
-    .sum-zero  { color: #2a3f55; }
-
-    /* Even/Odd & Patterns */
-    .eo-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .45rem; }
-    .eo-label { font-size: .78rem; color: #aabbcc; min-width: 70px; }
-    .eo-bar   { height: 5px; border-radius: 3px; background: #55aacc; }
-    .pat-bar  { height: 5px; border-radius: 3px; background: #a070cc; }
-    .eo-pct   { font-size: .72rem; color: #f5c518; font-weight: 700; width: 38px; text-align: right; }
-    .eo-cnt   { font-size: .68rem; color: #55667a; }
-    .quads-note { margin-top: .75rem; font-size: .75rem; color: #8899aa; }
-    .quad-num { font-family: monospace; font-weight: 700; color: #f5c518;
-                margin-right: .4rem; }
-
-    /* ── Predict page ── */
-    .predict-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .75rem; }
-    .predict-card {
-      background: #172130; border: 1px solid #243447; border-radius: 10px;
-      padding: .9rem .75rem; text-align: center; position: relative;
-      transition: border-color .2s, transform .15s;
-    }
-    .predict-card:hover { transform: translateY(-2px); border-color: #3a5070; }
-    .predict-rank { position: absolute; top: .45rem; left: .55rem; font-size: .65rem;
-                    color: #55667a; font-weight: 700; }
-    .predict-num  { font-family: monospace; font-size: 1.5rem; font-weight: 700;
-                    color: #e8eaf0; letter-spacing: .1rem; margin: .3rem 0; }
-    .predict-bar-wrap { background: #0f1923; border-radius: 3px; height: 4px; margin: .4rem 0; overflow: hidden; }
-    .predict-bar { height: 100%; border-radius: 3px; }
-    .predict-score { font-size: .72rem; color: #8899aa; }
-    .confidence-badge {
-      display: inline-block; border-radius: 20px; font-size: .7rem; font-weight: 700;
-      padding: .2rem .65rem; margin-top: .35rem; border: 1px solid currentColor;
-    }
-
-    .check-result-card {
-      background: #172130; border: 1px solid #243447; border-radius: 14px;
-      padding: 1.5rem; margin-top: 1rem;
-    }
-    .check-num-display { font-family: monospace; font-size: 2.5rem; font-weight: 700;
-                         letter-spacing: .5rem; color: #e8eaf0; }
-    .check-pct { font-size: 3rem; font-weight: 900; line-height: 1; }
-    .check-label { font-size: .85rem; font-weight: 700; margin-top: .2rem; }
-    .check-rank { font-size: .78rem; color: #8899aa; margin-top: .25rem; }
-    .factor-row { display: flex; align-items: center; gap: .6rem; margin-bottom: .5rem; }
-    .factor-name { font-size: .75rem; color: #aabbcc; min-width: 130px; }
-    .factor-bar-wrap { flex: 1; background: #0f1923; border-radius: 3px; height: 6px; overflow: hidden; }
-    .factor-bar { height: 100%; border-radius: 3px; background: #f5c518; }
-    .factor-pct { font-size: .72rem; color: #8899aa; width: 38px; text-align: right; }
-
-    .algo-card {
-      background: #0f1923; border: 1px solid #1e3048; border-radius: 10px;
-      padding: 1rem 1.25rem; font-size: .8rem; color: #8899aa; margin-bottom: 1.25rem;
-    }
-    .algo-card strong { color: #aabbcc; }
-
-    .btn-add-sim {
-      background: rgba(245,197,24,.07); border: 1px solid rgba(245,197,24,.25);
-      color: #8899aa; border-radius: 4px; padding: .18rem .4rem; font-size: .62rem;
-      font-weight: 600; cursor: pointer; width: 100%; margin-top: .4rem;
-      transition: all .15s; letter-spacing: .3px;
-    }
-    .btn-add-sim:hover   { border-color: #f5c518; color: #f5c518; }
-    .btn-add-sim.added   { border-color: #22c55e; color: #22c55e; }
-    .btn-add-sim.added:hover   { border-color: #f97316; color: #f97316; }
-    .btn-add-sim.already { border-color: #22c55e; color: #22c55e; }
-    .btn-add-sim.already:hover { border-color: #f97316; color: #f97316; }
-
-    /* ── Simulation page ── */
-    .sim-input {
-      background: #0f1923; border: 2px solid #2a3f55; color: #fff;
-      font-size: 1rem; font-weight: 600; border-radius: 10px;
-      padding: .55rem 1rem; width: 100%; transition: border-color .2s;
-    }
-    .sim-input:focus { outline: none; border-color: #f5c518; }
-    .sim-stats-row {
-      display: flex; gap: 1rem; flex-wrap: wrap;
-    }
-    .sim-stat {
-      flex: 1; min-width: 90px; background: #0f1923; border-radius: 8px;
-      padding: .6rem .8rem; text-align: center; border: 1px solid #1e3048;
-    }
-    .sim-stat-val { font-size: 1.2rem; font-weight: 800; color: #f5c518; line-height: 1.2; }
-    .sim-stat-lbl { font-size: .62rem; color: #55667a; text-transform: uppercase;
-                    letter-spacing: .4px; margin-top: .15rem; }
-    .draw-tape { display: flex; flex-wrap: wrap; gap: 3px; margin-top: .3rem; }
-    .draw-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: #1e3048; border: 1px solid #2a3f55; flex-shrink: 0;
-    }
-    .draw-dot.draw-hit { background: #f5c518; border-color: #f5c518; }
-    .tracked-card {
-      background: #172130; border: 1px solid #243447; border-radius: 10px;
-      padding: .85rem 1rem; margin-bottom: .6rem;
-      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
-    }
-    .tracked-num  { font-family: monospace; font-weight: 700; font-size: 1.1rem;
-                    color: #f5c518; min-width: 44px; }
-    .tracked-lot  { font-size: .72rem; color: #55aacc; font-weight: 600; min-width: 80px; }
-    .tracked-date { font-size: .72rem; color: #55667a; flex: 1; }
-    .tracked-result { font-size: .75rem; font-weight: 700; }
-    .tracked-win  { color: #22c55e; }
-    .tracked-miss { color: #55667a; }
-    .btn-sm-remove {
-      background: none; border: 1px solid #2a3f55; color: #55667a;
-      border-radius: 6px; padding: .2rem .5rem; font-size: .72rem; cursor: pointer;
-      transition: all .15s;
-    }
-    .btn-sm-remove:hover { border-color: #f97316; color: #f97316; }
-    .btn-track {
-      background: rgba(245,197,24,.12); border: 1px solid #f5c518; color: #f5c518;
-      border-radius: 8px; padding: .5rem 1.2rem; font-size: .82rem;
-      font-weight: 700; cursor: pointer; transition: all .15s; margin-top: .75rem;
-    }
-    .btn-track:hover { background: rgba(245,197,24,.22); }
-
-    /* ══ Mobile ══ */
-    @media (max-width: 767px) {
-      /* Nav */
-      .top-nav .container { flex-wrap: wrap; row-gap: .2rem; padding: .3rem 1rem; }
-      .top-nav .nav-link  { font-size: .78rem; padding: .22rem .5rem; }
-
-      /* Header */
-      .site-header { padding: .9rem 0 .75rem; }
-      .site-header h1 { font-size: 1.25rem; }
-      .site-header p  { font-size: .78rem; }
-
-      /* Number input — letter-spacing 1rem is huge on small screens */
-      .number-input { font-size: 1.7rem; letter-spacing: .4rem; padding: .45rem .75rem; }
-
-      /* Results draw table — allow horizontal scroll */
-      .draws-section .mb-3 { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-      .draw-table thead th,
-      .draw-table tbody td { padding: .35rem .45rem; font-size: .78rem; }
-      .special-nums { font-size: .68rem; }
-
-      /* Filter bar */
-      .filter-bar { padding: .6rem .75rem; }
-      .filter-pill { font-size: .7rem; padding: .15rem .5rem; }
-
-      /* Analysis + Predict tabs — wrap instead of overflow */
-      .analysis-tabs, #predictTabs { flex-wrap: wrap; }
-      .analysis-tabs .nav-link,
-      #predictTabs .nav-link { font-size: .76rem; padding: .28rem .6rem; }
-
-      /* Predict grid — 2 columns */
-      .predict-grid { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
-      .predict-num  { font-size: 1.25rem; }
-
-      /* Predict check result */
-      .check-num-display { font-size: 1.7rem; letter-spacing: .3rem; }
-      .check-pct  { font-size: 2rem; }
-      .factor-name { min-width: 95px; font-size: .68rem; }
-      .factor-pct  { width: 30px; font-size: .68rem; }
-      .check-result-card { padding: 1rem; }
-
-      /* Simulate table */
-      #my-table thead th,
-      #my-table tbody td { padding: .35rem .45rem !important; font-size: .76rem; }
-      #my-table td.cell-num { font-size: .88rem; }
-
-      /* Search card */
-      .search-card { padding: 1.25rem 1rem; }
-      .btn-search  { font-size: .9rem; padding: .6rem 1.2rem; }
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
   {% block head %}{% endblock %}
 </head>
 <body>
 
 <!-- Top nav -->
 <nav class="top-nav">
-  <div class="container d-flex align-items-center gap-1 flex-wrap">
-    <span style="color:#f5c518;font-weight:700;margin-right:.75rem;">&#127922; 4D</span>
-    <a href="/" class="nav-link {% if active_page == 'results' %}active{% endif %}">Results</a>
-    <a href="/draws" class="nav-link {% if active_page == 'draws' %}active{% endif %}">Draws</a>
-    <a href="/analysis" class="nav-link {% if active_page == 'analysis' %}active{% endif %}">Analysis</a>
-    <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
-    {% if session.get('approved') %}
-    <a href="/simulate" class="nav-link {% if active_page == 'simulate' %}active{% endif %}">Simulation</a>
-    {% else %}
-    <span class="nav-link" style="opacity:.4;cursor:not-allowed" title="Only Logged-in users are allowed to use this function.">Simulation</span>
-    {% endif %}
-    <a href="/dream" class="nav-link {% if active_page == 'dream' %}active{% endif %}">Dream</a>
-    <a href="/payouts" class="nav-link {% if active_page == 'payouts' %}active{% endif %}">Payouts</a>
-    {% if session.get('user_id') %}
-    <a href="/feedback" class="nav-link {% if active_page == 'feedback' %}active{% endif %}">Feedback</a>
-    {% else %}
-    <span class="nav-link" style="opacity:.4;cursor:not-allowed" title="Only Logged-in users are allowed to use this function.">Feedback</span>
-    {% endif %}
-    <div class="ms-auto d-flex align-items-center gap-1">
-      {% if session.get('user_id') %}
-        <span style="font-size:.75rem;color:#55aacc;padding:.35rem .5rem">&#128100; {{ session['user_id'] }}</span>
-        {% if session.get('is_admin') %}
-        <a href="/admin" class="nav-link" style="color:#f5c518">Admin</a>
+  <div class="container">
+    <span class="nav-brand">&#127922; 4D</span>
+
+    <!-- Hamburger: mobile only, keeps the 8 links off a 3-row wrap -->
+    <button class="nav-toggle d-md-none ms-auto" type="button"
+            data-bs-toggle="collapse" data-bs-target="#navLinks"
+            aria-controls="navLinks" aria-expanded="false" aria-label="Toggle navigation">
+      <span aria-hidden="true">&#9776;</span>
+    </button>
+
+    <div class="collapse d-md-block nav-collapse" id="navLinks">
+      <div class="nav-inner d-flex align-items-center gap-1 flex-wrap">
+        <a href="/" class="nav-link {% if active_page == 'results' %}active{% endif %}">Results</a>
+        <a href="/draws" class="nav-link {% if active_page == 'draws' %}active{% endif %}">Draws</a>
+        <a href="/analysis" class="nav-link {% if active_page == 'analysis' %}active{% endif %}">Analysis</a>
+        <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
+        {% if session.get('approved') %}
+        <a href="/simulate" class="nav-link {% if active_page == 'simulate' %}active{% endif %}">Simulation</a>
+        {% else %}
+        {# Locked, not dead: send signed-out users to login instead of a disabled span #}
+        <a href="/login?next=/simulate" class="nav-link locked" title="Sign in to use Simulation">Simulation<span class="lock" aria-hidden="true">&#128274;</span><span class="visually-hidden"> (sign in required)</span></a>
         {% endif %}
-        <a href="/logout" class="nav-link">Logout</a>
-      {% else %}
-        <a href="/login" class="nav-link">Login</a>
-        <a href="/register" class="nav-link">Register</a>
-      {% endif %}
+        <a href="/dream" class="nav-link {% if active_page == 'dream' %}active{% endif %}">Dream</a>
+        <a href="/payouts" class="nav-link {% if active_page == 'payouts' %}active{% endif %}">Payouts</a>
+        {% if session.get('user_id') %}
+        <a href="/feedback" class="nav-link {% if active_page == 'feedback' %}active{% endif %}">Feedback</a>
+        {% else %}
+        <a href="/login?next=/feedback" class="nav-link locked" title="Sign in to send feedback">Feedback<span class="lock" aria-hidden="true">&#128274;</span><span class="visually-hidden"> (sign in required)</span></a>
+        {% endif %}
+        <div class="nav-auth ms-auto d-flex align-items-center gap-1">
+          {% if session.get('user_id') %}
+            <span class="nav-user">&#128100; {{ session['user_id'] }}</span>
+            {% if session.get('is_admin') %}
+            <a href="/admin" class="nav-link" style="color:#f5c518">Admin</a>
+            {% endif %}
+            <a href="/logout" class="nav-link">Logout</a>
+          {% else %}
+            <a href="/login" class="nav-link">Login</a>
+            <a href="/register" class="nav-link">Register</a>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
 </nav>

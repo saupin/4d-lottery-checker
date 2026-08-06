@@ -88,7 +88,7 @@
 <div class="row justify-content-center">
   <div class="col-lg-5">
     <div class="search-card">
-      <label class="mb-2 d-block">Enter a 4-digit number to score</label>
+      <label for="predictInput" class="mb-2 d-block">Enter a 4-digit number to score</label>
       <input id="predictInput" class="number-input mb-3"
              type="text" inputmode="numeric" pattern="\d{4}"
              maxlength="4" placeholder="0000" autocomplete="off" />
@@ -98,15 +98,16 @@
         <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">Score against</label>
         <div class="d-flex gap-2 flex-wrap">
           {% for key, label in [('all','All'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
-          <span class="filter-pill {% if key == 'all' %}active{% endif %}"
-                id="lot-{{ key }}" onclick="selectLottery('{{ key }}')">{{ label }}</span>
+          <button type="button" class="filter-pill {% if key == 'all' %}active{% endif %}"
+                  aria-pressed="{{ 'true' if key == 'all' else 'false' }}"
+                  id="lot-{{ key }}" onclick="selectLottery('{{ key }}')">{{ label }}</button>
           {% endfor %}
         </div>
       </div>
 
       <div class="d-flex gap-2">
-        <button class="btn-search flex-grow-1" onclick="checkNumber()">Check Probability</button>
-        <button class="btn-clear" onclick="clearPredict()" title="Clear">&#10005;</button>
+        <button class="btn-search flex-grow-1" onclick="checkNumber()">Check Pattern Score</button>
+        <button class="btn-clear" onclick="clearPredict()" title="Clear" aria-label="Clear number">&#10005;</button>
       </div>
     </div>
 
@@ -258,8 +259,12 @@
 
   function selectLottery(key) {
     selectedLottery = key;
-    document.querySelectorAll('[id^="lot-"]').forEach(el => el.classList.remove('active'));
-    document.getElementById('lot-' + key).classList.add('active');
+    document.querySelectorAll('[id^="lot-"]').forEach(el => {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    const sel = document.getElementById('lot-' + key);
+    if (sel) { sel.classList.add('active'); sel.setAttribute('aria-pressed', 'true'); }
     if (pinput.value.trim().length === 4) checkNumber();
   }
 
@@ -316,9 +321,15 @@
             </div>
             <div class="text-center">
               <div class="check-pct" style="color:${colour}">${data.score_pct}%</div>
+              <div class="check-score-note">Pattern score</div>
               <div class="check-label" style="color:${colour}">${data.label}</div>
               <div class="check-rank">Percentile ${data.percentile}th &bull; Rank #${data.rank} of 10,000</div>
             </div>
+          </div>
+          <div class="check-disclaimer">
+            This is a <strong>pattern score</strong>, not a probability. Every 4D number has the
+            same 1-in-10,000 chance on any given draw — the score only says how closely this
+            number matches historical patterns.
           </div>
           <div style="font-size:.75rem;color:#8899aa;margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.6px">Factor Breakdown</div>
           ${factorRows}

@@ -18,13 +18,11 @@
       <form method="POST" action="/login{% if next %}?next={{ next }}{% endif %}">
         <label class="mb-1 d-block">Username</label>
         <input type="text" name="username" autocomplete="username" required
-               class="number-input mb-3"
-               style="font-size:1.1rem;letter-spacing:normal;text-align:left;padding:.6rem 1rem">
+               class="form-input mb-3">
 
         <label class="mb-1 d-block">Password</label>
         <input type="password" name="password" autocomplete="current-password" required
-               class="number-input mb-4"
-               style="font-size:1.1rem;letter-spacing:normal;text-align:left;padding:.6rem 1rem">
+               class="form-input mb-4">
 
         <button type="submit" class="btn-search w-100">Sign In</button>
       </form>

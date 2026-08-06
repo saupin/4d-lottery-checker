@@ -5,6 +5,14 @@
 {% block header %}
   <h1>&#127922; 4D Lottery Checker</h1>
   <p>Check your number against DAMACAI, MAGNUM &amp; SPORTSTOTO results &mdash; {{ total_dates }} draw date{{ 's' if total_dates != 1 }} stored</p>
+  <div class="freshness">
+    {% if latest_draw %}
+    <span class="fresh-item"><span class="dot" aria-hidden="true"></span>Results updated: <strong>{{ latest_draw }}</strong></span>
+    {% endif %}
+    {% if next_draw %}
+    <span class="fresh-item"><span class="dot next" aria-hidden="true"></span>Next draw: <strong>{{ next_draw }}</strong></span>
+    {% endif %}
+  </div>
 {% endblock %}
 
 {% block content %}
@@ -13,20 +21,26 @@
   <!-- Search column -->
   <div class="col-lg-5">
     <div class="search-card">
-      <label class="mb-2 d-block">Enter your 4-digit number</label>
+      <label for="numberInput" class="mb-2 d-block">Enter your 4-digit number</label>
       <input id="numberInput" class="number-input mb-3"
              type="text" inputmode="numeric" pattern="\d{4}"
              maxlength="4" placeholder="0000"
-             autocomplete="off" />
+             autocomplete="off" autofocus />
       <div class="d-flex gap-2">
         <button class="btn-search flex-grow-1" onclick="doSearch()">Check Number</button>
-        <button class="btn-clear" onclick="clearInput()" title="Clear">&#10005;</button>
+        <button class="btn-clear" onclick="clearInput()" title="Clear" aria-label="Clear number">&#10005;</button>
+      </div>
+      <!-- Recently checked numbers (localStorage) — checking is a repeat-use habit -->
+      <div id="recent-row" class="recent-row" style="display:none">
+        <span class="recent-label">Recent</span>
+        <span id="recent-chips" class="d-flex gap-1 flex-wrap"></span>
       </div>
     </div>
 
     <!-- Spinner -->
-    <div id="spinner" class="text-center mt-3">
+    <div id="spinner" class="text-center mt-3" role="status" aria-live="polite">
       <div class="spin"></div>
+      <span class="visually-hidden">Searching…</span>
     </div>
 
     <!-- Results area -->
@@ -84,6 +98,9 @@
 
   input.addEventListener('input', () => {
     input.value = input.value.replace(/\D/g, '').slice(0, 4);
+    // Auto-search once the 4th digit lands — this is the app's core action,
+    // and ?num= deep links already behave this way.
+    if (input.value.length === 4 && input.value !== currentNum) doSearch();
   });
   input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
@@ -92,6 +109,39 @@
     currentNum  = '';
     document.getElementById('results').innerHTML = '';
     input.focus();
+  }
+
+  /* ── Recently checked numbers (localStorage) ── */
+  const RECENT_KEY = 'recent4d';
+  const RECENT_MAX = 6;
+
+  function readRecent() {
+    try {
+      const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+      return Array.isArray(v) ? v.filter(n => /^\d{4}$/.test(n)) : [];
+    } catch { return []; }
+  }
+
+  function pushRecent(num) {
+    const list = [num, ...readRecent().filter(n => n !== num)].slice(0, RECENT_MAX);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+    renderRecent();
+  }
+
+  function renderRecent() {
+    const list = readRecent();
+    const row  = document.getElementById('recent-row');
+    const box  = document.getElementById('recent-chips');
+    if (!list.length) { row.style.display = 'none'; return; }
+    box.innerHTML = list.map(n =>
+      `<button type="button" class="recent-chip" onclick="useRecent('${n}')">${n}</button>`
+    ).join('');
+    row.style.display = 'flex';
+  }
+
+  function useRecent(num) {
+    input.value = num;
+    doSearch();
   }
 
   // ── Filter state ──
@@ -124,14 +174,17 @@
     activeTiers     = new Set(tiers);
     fromYear = minY; toYear = maxY;
 
+    // Buttons, not spans: pills are controls, so they must be keyboard-operable.
     const lotPills = lotteries.map(l =>
-      `<span class="filter-pill active" onclick="togglePill(activeLotteries,'${l}',this)">${l}</span>`
+      `<button type="button" class="filter-pill active" aria-pressed="true"
+               onclick="togglePill(activeLotteries,'${l}',this)">${l}</button>`
     ).join('');
 
     const TIER_SHORT = { '1st Prize':'1st', '2nd Prize':'2nd', '3rd Prize':'3rd',
                          'Special':'Special', 'Consolation':'Consol.' };
     const tierPills = tiers.map(t =>
-      `<span class="filter-pill active" onclick="togglePill(activeTiers,'${t}',this)">${TIER_SHORT[t]||t}</span>`
+      `<button type="button" class="filter-pill active" aria-pressed="true"
+               onclick="togglePill(activeTiers,'${t}',this)">${TIER_SHORT[t]||t}</button>`
     ).join('');
 
     let fromOpts = '', toOpts = '';
@@ -149,10 +202,13 @@
           <span class="filter-label">Prize</span>${tierPills}
         </div>
         <div class="filter-group">
-          <span class="filter-label">Year</span>
-          <select class="filter-select" id="fromYear" onchange="fromYear=+this.value;applyFilters()">${fromOpts}</select>
-          <span style="color:#8899aa">–</span>
-          <select class="filter-select" id="toYear" onchange="toYear=+this.value;applyFilters()">${toOpts}</select>
+          <span class="filter-label" id="yearLabel">Year</span>
+          <select class="filter-select" id="fromYear" aria-labelledby="yearLabel" aria-label="From year"
+                  onchange="fromYear=+this.value;applyFilters()">${fromOpts}</select>
+          <span aria-hidden="true" style="color:#9aabbe">–</span>
+          <select class="filter-select" id="toYear" aria-label="To year"
+                  onchange="toYear=+this.value;applyFilters()">${toOpts}</select>
+          <button type="button" class="filter-reset ms-auto" onclick="resetFilters()">Reset filters</button>
         </div>
         <div class="match-count" id="matchCount"></div>
       </div>
@@ -162,6 +218,24 @@
   function togglePill(set, value, el) {
     if (set.has(value)) { set.delete(value); el.classList.remove('active'); }
     else                { set.add(value);    el.classList.add('active');    }
+    el.setAttribute('aria-pressed', set.has(value) ? 'true' : 'false');
+    applyFilters();
+  }
+
+  // "Everything lit" reads as "nothing selected" — give people a way back to it.
+  function resetFilters() {
+    document.getElementById('results').querySelectorAll('.filter-pill').forEach(el => {
+      el.classList.add('active');
+      el.setAttribute('aria-pressed', 'true');
+    });
+    activeLotteries = new Set(allMatches.map(m => m.lottery));
+    activeTiers     = new Set(allMatches.map(m => m.prize));
+    const years  = allMatches.map(matchYear);
+    fromYear = Math.min(...years); toYear = Math.max(...years);
+    const fromSel = document.getElementById('fromYear');
+    const toSel   = document.getElementById('toYear');
+    if (fromSel) fromSel.value = String(fromYear);
+    if (toSel)   toSel.value   = String(toYear);
     applyFilters();
   }
 
@@ -278,10 +352,12 @@
           </div>
           ${buildTrackBar(num)}`;
         markTrackBarTracked(num);
+        pushRecent(num);
         return;
       }
 
       allMatches = data.matches;
+      pushRecent(num);
       const count = allMatches.length;
       const alertHtml = `
         <div class="alert alert-success alert-result mb-3">
@@ -308,11 +384,14 @@
 
   // Auto-search from URL ?num=XXXX (e.g. linked from Draws page)
   document.addEventListener('DOMContentLoaded', () => {
+    renderRecent();
     const params = new URLSearchParams(window.location.search);
     const num = params.get('num');
     if (num && /^\d{4}$/.test(num)) {
       input.value = num;
       doSearch();
+    } else {
+      input.focus();
     }
   });
 </script>

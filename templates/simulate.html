@@ -29,8 +29,9 @@
       <label class="mb-1 d-block" style="font-size:.75rem;color:#8899aa;text-transform:uppercase;letter-spacing:.6px">Lottery</label>
       <div class="d-flex gap-2 flex-wrap mb-3">
         {% for key, lbl in [('all','All'),('damacai','DAMACAI'),('magnum','MAGNUM'),('toto','SPORTSTOTO')] %}
-        <span class="filter-pill {% if key == 'all' %}active{% endif %}"
-              id="tl-{{ key }}" onclick="selectLot('{{ key }}')">{{ lbl }}</span>
+        <button type="button" class="filter-pill {% if key == 'all' %}active{% endif %}"
+                aria-pressed="{{ 'true' if key == 'all' else 'false' }}"
+                id="tl-{{ key }}" onclick="selectLot('{{ key }}')">{{ lbl }}</button>
         {% endfor %}
       </div>
 
@@ -68,12 +69,13 @@
 
       <!-- Bulk action bar -->
       <div id="bulk-bar" style="display:none;align-items:center;gap:.75rem;flex-wrap:wrap;
-           background:#f0f0f0;border:1px solid #cccccc;border-radius:8px;
+           background:#172130;border:1px solid #243447;border-radius:8px;
            padding:.5rem .75rem;margin-bottom:.6rem">
-        <span id="bulk-count" style="font-size:.78rem;font-weight:700;color:#333"></span>
+        <span id="bulk-count" style="font-size:.78rem;font-weight:700;color:#e8eaf0"></span>
         <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap">
           <input id="bulk-tries" type="number" min="1" max="365" placeholder="tries"
-                 style="width:70px;padding:.2rem .4rem;font-size:.78rem;border:1px solid #aaa;border-radius:4px">
+                 style="width:70px;padding:.2rem .4rem;font-size:.78rem;background:#0f1923;
+                        color:#e8eaf0;border:1px solid #2f4459;border-radius:4px">
           <button class="btn-tbl" onclick="bulkEditTries()" style="color:#1d6fbf;border-color:#1d6fbf">&#9998; Change Tries</button>
           <button class="btn-tbl btn-remove" onclick="bulkDelete()">&#10005; Delete Selected</button>
         </div>
@@ -96,7 +98,7 @@
             </tr>
           </thead>
           <tbody id="my-numbers-body">
-            <tr><td colspan="7" style="color:#55667a;font-size:.8rem;text-align:center;padding:1.5rem">Loading…</td></tr>
+            <tr><td colspan="7" style="color:#9aabbe;font-size:.8rem;text-align:center;padding:1.5rem">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -106,40 +108,38 @@
 </div>
 
 <style>
-  #my-table { background:#ffffff; }
+  /* Dark theme, matching .draw-table in static/style.css.
+     The old white table + pure-black hover were the "pasted in from another
+     app" islands called out in the UI review. */
+  #my-table { background:var(--surface); }
   #my-table thead th {
-    font-size:.72rem; color:#333333; text-transform:uppercase; letter-spacing:.5px;
-    background:#e8e8e8; border:none; padding:.5rem .75rem;
+    font-size:.72rem; color:var(--text-mid); text-transform:uppercase; letter-spacing:.5px;
+    background:#1d2a3b; border:none; padding:.5rem .75rem;
   }
   #my-table tbody td {
-    background:#ffffff; border-color:#dddddd; color:#000000;
+    background:var(--surface); border-color:var(--border); color:var(--text);
     vertical-align:middle; padding:.55rem .75rem; font-size:.85rem;
-    transition: background .15s, color .15s;
+    transition: background .15s;
   }
-  #my-table tbody tr:hover td { background:#000000 !important; color:#ffffff !important; }
-  #my-table tbody tr:hover .tracked-win,
-  #my-table tbody tr:hover .tracked-miss,
-  #my-table tbody tr:hover .res-win,
-  #my-table tbody tr:hover .res-miss,
-  #my-table tbody tr:hover .res-done   { color:#ffffff !important; }
-  #my-table td.cell-num    { font-family:monospace; font-weight:700; font-size:1rem; color:#000000; }
-  #my-table td.cell-lot    { font-size:.72rem; font-weight:600; color:#000000; }
-  #my-table td.cell-tries  { font-size:.78rem; color:#000000; white-space:nowrap; }
-  #my-table td.cell-date   { font-size:.72rem; color:#000000; white-space:nowrap; }
+  #my-table tbody tr:hover td { background:var(--surface-2); }
+  #my-table td.cell-num    { font-family:monospace; font-weight:700; font-size:1rem; color:var(--gold); }
+  #my-table td.cell-lot    { font-size:.72rem; font-weight:600; color:#6ec1e4; }
+  #my-table td.cell-tries  { font-size:.78rem; color:var(--text); white-space:nowrap; }
+  #my-table td.cell-date   { font-size:.75rem; color:var(--text-dim); white-space:nowrap; }
   .cell-result { font-size:.72rem; }
   .res-win     { color:#22c55e; font-weight:700; }
-  .res-miss    { color:#555555; }
-  .res-done    { color:#888888; font-style:italic; }
-  .res-pending { color:#aaaaaa; }
-  .checking    { color:#55aacc; font-style:italic; }
+  .res-miss    { color:var(--text-faint); }
+  .res-done    { color:var(--text-dim); font-style:italic; }
+  .res-pending { color:var(--text-dim); }
+  .checking    { color:#6ec1e4; font-style:italic; }
   .btn-tbl {
-    background:none; border:1px solid #cccccc; color:#555555;
+    background:none; border:1px solid var(--border-2); color:var(--text-dim);
     border-radius:5px; padding:.18rem .5rem; font-size:.7rem;
     cursor:pointer; transition:all .15s; white-space:nowrap;
   }
-  .btn-tbl:hover            { border-color:#333333; color:#000000; }
+  .btn-tbl:hover            { border-color:var(--gold); color:var(--gold); }
   .btn-tbl.btn-remove:hover { border-color:#f97316; color:#f97316; }
-  #my-table tbody tr.row-selected td { background:#fff8e0 !important; }
+  #my-table tbody tr.row-selected td { background:rgba(245,197,24,.10) !important; }
 </style>
 
 <script>
@@ -161,8 +161,12 @@
 
   function selectLot(key) {
     selectedLot = key;
-    document.querySelectorAll('[id^="tl-"]').forEach(el => el.classList.remove('active'));
-    document.getElementById('tl-' + key).classList.add('active');
+    document.querySelectorAll('[id^="tl-"]').forEach(el => {
+      el.classList.remove('active');
+      el.setAttribute('aria-pressed', 'false');
+    });
+    const selEl = document.getElementById('tl-' + key);
+    if (selEl) { selEl.classList.add('active'); selEl.setAttribute('aria-pressed', 'true'); }
   }
 
   function today() { return new Date().toISOString().slice(0,10); }
