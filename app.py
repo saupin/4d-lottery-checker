@@ -13,6 +13,7 @@ import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from functools import wraps
+from urllib.parse import urlparse
 import requests as _req
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -205,6 +206,30 @@ def _save_user_numbers(username: str, data: list) -> None:
         return
     with open(os.path.join(os.path.dirname(__file__), f"user_numbers_{username}.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+def _safe_next(target: str | None, fallback: str) -> str:
+    """Return `target` only if it is a same-site relative path.
+
+    The ``next`` parameter is attacker-controllable (it is handed out in links
+    such as ``/login?next=/simulate``), so an absolute URL here would bounce
+    the user off-site right after they type their password. Reject anything
+    carrying a scheme or a host; that also covers the protocol-relative
+    ``//evil.example`` form, which starts with "/" and so slips past a naive
+    startswith("/") check.
+    """
+    if not target:
+        return fallback
+    parsed = urlparse(target)
+    if parsed.scheme or parsed.netloc:
+        return fallback
+    if not target.startswith("/"):
+        return fallback
+    # Browsers normalise backslashes to slashes, so /\evil.example is also
+    # treated as protocol-relative by some clients.
+    if target[1:2] in ("/", "\\"):
+        return fallback
+    return target
+
 
 def login_required(f):
     @wraps(f)
@@ -1186,7 +1211,7 @@ def api_notification_wins():
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if "user_id" in session:
-        return redirect(request.args.get("next") or "/")
+        return redirect(_safe_next(request.args.get("next"), "/"))
     error = None
     if request.method == "POST":
         ip = request.remote_addr or "unknown"
@@ -1199,7 +1224,7 @@ def login_page():
             session["user_id"]  = "admin"
             session["approved"] = True
             session["is_admin"] = True
-            return redirect(request.args.get("next") or "/admin")
+            return redirect(_safe_next(request.args.get("next"), "/admin"))
         user = _get_user(username)
         if not user or not check_password_hash(user["password_hash"], password):
             _record_failed_login(ip)
@@ -1212,7 +1237,7 @@ def login_page():
                 session["show_notifications"] = True
             if _has_unread_replies(username):
                 session["show_feedback_reply"] = True
-            return redirect(request.args.get("next") or "/")
+            return redirect(_safe_next(request.args.get("next"), "/"))
     return render_template("login.html", error=error, next=request.args.get("next", ""))
 
 
