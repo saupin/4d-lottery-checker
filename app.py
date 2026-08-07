@@ -14,7 +14,27 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from functools import wraps
 from urllib.parse import urlparse
-import requests as _req
+
+# requests is imported lazily: it alone adds ~0.9s to module import, and most
+# routes (all the public read-only pages) never make an outbound HTTP call.
+# Cold Vercel functions serving those pages skip the cost entirely.
+class _LazyRequests:
+    """Module proxy so existing `_req.get(...)` call sites read unchanged.
+
+    The real module is imported (and cached) on first attribute access, so
+    `from app import _req` importers get this proxy and still pay nothing
+    until they actually make a request.
+    """
+    _mod = None
+
+    def __getattr__(self, name):
+        if _LazyRequests._mod is None:
+            import requests
+            _LazyRequests._mod = requests
+        return getattr(_LazyRequests._mod, name)
+
+_req = _LazyRequests()
+
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -585,14 +605,42 @@ _analysis_cache_mtime: float = 0.0
 _backtest_cache: dict | None = None
 
 
+def _load_stored_analysis(last_draw: str) -> dict | None:
+    """Load pre-computed /analysis stats from Supabase, if fresh.
+
+    predict_store.py refreshes the ``analysis`` row after every scrape. Only
+    trust it when it was built from the same data we currently have.
+    """
+    if not (_SB_URL and _SB_KEY):
+        return None
+    try:
+        r = _req.get(f"{_SB_URL}/rest/v1/latest_predictions?select=id,data&id=eq.analysis",
+                     headers=_sb_headers(), timeout=5)
+        rows = r.json()
+        if not rows:
+            return None
+        payload = json.loads(rows[0]["data"])
+        if payload.get("based_on") != last_draw:
+            return None
+        return payload["cache"]
+    except Exception:
+        return None
+
+
 def _get_analysis_cache() -> dict:
     global _analysis_cache, _analysis_cache_mtime
     mtime = os.path.getmtime(RESULTS_FILE) if os.path.exists(RESULTS_FILE) else 0.0
     if _analysis_cache is None or mtime != _analysis_cache_mtime:
-        data = load_results()
-        stats, counts = compute_stats(data)
-        exts = {k: compute_extended_stats(data, v) for k, v in LOTTERY_KEYS.items()}
-        _analysis_cache      = {"stats": stats, "counts": counts, "exts": exts, "total_dates": len(data)}
+        data      = load_results()
+        last_draw = max(data.keys()) if data else ""
+        stored    = _load_stored_analysis(last_draw)
+        if stored is not None:
+            _analysis_cache = stored
+        else:
+            stats, counts = compute_stats(data)
+            exts = {k: compute_extended_stats(data, v) for k, v in LOTTERY_KEYS.items()}
+            _analysis_cache = {"stats": stats, "counts": counts, "exts": exts,
+                               "total_dates": len(data)}
         _analysis_cache_mtime = mtime
     return _analysis_cache
 
