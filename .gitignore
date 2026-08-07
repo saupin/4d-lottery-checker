@@ -6,3 +6,7 @@ __pycache__/
 
 .vercel
 my_numbers.json
+# Local auth + tracked-number data (production lives in Supabase)
+users.json
+user_numbers_*.json
+.scratch-venv/

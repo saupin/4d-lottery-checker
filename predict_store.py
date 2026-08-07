@@ -33,6 +33,7 @@ if not os.environ.get("SECRET_KEY"):
 
 from app import (
     _boosted_ranked_scores,
+    _get_analysis_cache,
     load_results,
     LOTTERY_KEYS,
     _SB_URL,
@@ -154,6 +155,18 @@ def main():
                     "cons_total":   len(consol),
                     "cons_matched": [n for n in consol  if n in ho_set],
                 }
+
+    # Pre-compute and store /analysis stats so cold Vercel functions can serve
+    # the page without a ~3s stats rebuild. Freshness is guarded by based_on.
+    try:
+        analysis_cache = _get_analysis_cache()
+        payload = {"based_on": last_draw,
+                   "generated_at": datetime.now().isoformat(timespec="seconds"),
+                   "cache": analysis_cache}
+        status = _upsert("analysis", payload)
+        print(f"  analysis: {status}")
+    except Exception as e:
+        print(f"  Warning: analysis store failed: {e}")
 
     # Write summary JSON for Telegram notification
     try:

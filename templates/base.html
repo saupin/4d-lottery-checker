@@ -37,6 +37,7 @@
         <a href="/predict" class="nav-link {% if active_page == 'predict' %}active{% endif %}">Predict</a>
         {% if session.get('approved') %}
         <a href="/simulate" class="nav-link {% if active_page == 'simulate' %}active{% endif %}">Simulation</a>
+        <a href="/my-wins" class="nav-link {% if active_page == 'my-wins' %}active{% endif %}">My Wins</a>
         {% else %}
         {# Locked, not dead: send signed-out users to login instead of a disabled span #}
         <a href="/login?next=/simulate" class="nav-link locked" title="Sign in to use Simulation">Simulation<span class="lock" aria-hidden="true">&#128274;</span><span class="visually-hidden"> (sign in required)</span></a>

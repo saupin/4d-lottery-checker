@@ -120,6 +120,8 @@
 </div>
 
 <script>
+  /* Logged-out visitors get a 401 from /api/my-numbers by design — don't even try. */
+  const canTrack = {{ 'true' if session.get('approved') else 'false' }};
   /* ── Add to Simulation (My Numbers) ── */
   async function addToSim(num, lottery, btn) {
     btn.disabled = true;
@@ -238,6 +240,7 @@
   }
 
   async function markTracked() {
+    if (!canTrack) return;
     try {
       const r    = await fetch('/api/my-numbers');
       const list = await r.json();
