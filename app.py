@@ -808,6 +808,55 @@ def next_draw_date() -> str:
     return ""
 
 
+def _scan_user_wins(entries: list, data: dict, since: str | None = None) -> list[dict]:
+    """Scan draw results for wins on the given tracked-number entries.
+
+    Each entry is ``{num, lottery, date, tries, ...}``; a draw counts for an
+    entry only on or after its ``date`` and (unless ``lottery == "all"``) only
+    for the matching operator. ``since`` (YYYY-MM-DD) optionally bounds how far
+    back to look. Returns win dicts newest-first, each carrying the entry key
+    ``num|lottery|date`` so callers can group by tracked number.
+    """
+    if not entries:
+        return []
+    num_index = defaultdict(list)
+    for e in entries:
+        num_index[e["num"]].append(e)
+
+    wins = []
+    for date_str in sorted(data.keys(), reverse=True):
+        if since and date_str < since:
+            continue
+        day = data[date_str]
+        for lot_key in LOTTERY_ORDER:
+            lottery = day.get(lot_key)
+            if not lottery:
+                continue
+            prizes = lottery.get("prizes", {})
+            for tier in PRIZE_ORDER:
+                val = prizes.get(tier)
+                if not val:
+                    continue
+                for num in ([val] if isinstance(val, str) else val):
+                    if num not in num_index:
+                        continue
+                    for e in num_index[num]:
+                        if date_str < e["date"]:
+                            continue
+                        if e["lottery"] != "all" and lot_key != e["lottery"]:
+                            continue
+                        wins.append({
+                            "num":      num,
+                            "key":      f"{num}|{e['lottery']}|{e['date']}",
+                            "date":     date_str,
+                            "date_fmt": datetime.strptime(date_str, "%Y-%m-%d").strftime("%a, %d %b %Y"),
+                            "lottery":  lottery.get("label", lot_key.upper()),
+                            "prize":    PRIZE_LABEL[tier],
+                            "tier":     tier,
+                        })
+    return wins
+
+
 def build_prediction_model(data: dict, lottery: str | None = None) -> dict:
     # Include all prize tiers (top 3 + 10 specials + 10 consolations)
     top_tiers  = ["1st", "2nd", "3rd"]
@@ -1130,6 +1179,41 @@ def simulate():
                            next_draw=next_draw_date())
 
 
+@app.route("/my-wins")
+@approved_required
+def my_wins():
+    """All-time wins for the logged-in user's tracked numbers, grouped by number."""
+    entries = _load_user_numbers(session["user_id"])
+    wins    = _scan_user_wins(entries, load_results())
+
+    by_entry: dict[str, list] = {}
+    for w in wins:
+        by_entry.setdefault(w["key"], []).append(w)
+
+    lot_label = {"all": "All Lotteries", "damacai": "DAMACAI",
+                 "magnum": "MAGNUM", "toto": "SPORTSTOTO"}
+    TIER_RANK = {t: i for i, t in enumerate(PRIZE_ORDER)}
+    groups = []
+    for e in entries:
+        key   = f"{e['num']}|{e['lottery']}|{e['date']}"
+        ewin  = by_entry.get(key, [])
+        groups.append({
+            "num":        e["num"],
+            "lottery":    e["lottery"],
+            "lot_label":  lot_label.get(e["lottery"], e["lottery"].upper()),
+            "since_fmt":  datetime.strptime(e["date"], "%Y-%m-%d").strftime("%d %b %Y"),
+            "wins":       ewin,
+            "win_count":  len(ewin),
+            "best_index": min((TIER_RANK[w["tier"]] for w in ewin), default=99),
+        })
+    # Winners first (best tier, then most wins), then the rest alphabetically
+    groups.sort(key=lambda g: (g["win_count"] == 0, g["best_index"], -g["win_count"], g["num"]))
+
+    return render_template("my_wins.html", active_page="my-wins",
+                           groups=groups, total_wins=len(wins),
+                           winning_nums=sum(1 for g in groups if g["win_count"]))
+
+
 @app.route("/draws")
 def draws():
     data = load_results()
@@ -1166,46 +1250,8 @@ def api_notification_wins():
     """Return wins from the last 30 days for the logged-in user's tracked numbers."""
     session.pop("show_notifications", None)
     entries = _load_user_numbers(session["user_id"])
-    if not entries:
-        return jsonify([])
-
-    data    = load_results()
     cutoff  = (datetime.today() - timedelta(days=30)).strftime("%Y-%m-%d")
-    num_index = defaultdict(list)
-    for e in entries:
-        num_index[e["num"]].append(e)
-
-    wins = []
-    for date_str in sorted(data.keys()):
-        if date_str < cutoff:
-            continue
-        day = data[date_str]
-        for lot_key in LOTTERY_ORDER:
-            lottery = day.get(lot_key)
-            if not lottery:
-                continue
-            prizes = lottery.get("prizes", {})
-            for tier in PRIZE_ORDER:
-                val = prizes.get(tier)
-                if not val:
-                    continue
-                for num in ([val] if isinstance(val, str) else val):
-                    if num not in num_index:
-                        continue
-                    for e in num_index[num]:
-                        if date_str < e["date"]:
-                            continue
-                        if e["lottery"] != "all" and lot_key != e["lottery"]:
-                            continue
-                        wins.append({
-                            "num":      num,
-                            "date_fmt": datetime.strptime(date_str, "%Y-%m-%d").strftime("%a, %d %b %Y"),
-                            "lottery":  lottery.get("label", lot_key.upper()),
-                            "prize":    PRIZE_LABEL[tier],
-                            "tier":     tier,
-                        })
-
-    return jsonify(wins)
+    return jsonify(_scan_user_wins(entries, load_results(), since=cutoff))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1920,9 +1966,6 @@ def api_check_all():
 
     data      = load_results()
     min_date  = min(e["date"] for e in entries)
-    num_index = defaultdict(list)
-    for e in entries:
-        num_index[e["num"]].append(e)
 
     results    = {f"{e['num']}|{e['lottery']}|{e['date']}": {"wins": [], "draws_checked": 0} for e in entries}
     draw_dates = {f"{e['num']}|{e['lottery']}|{e['date']}": set() for e in entries}
@@ -1937,31 +1980,14 @@ def api_check_all():
             if date_str >= e["date"]:
                 draw_dates[f"{e['num']}|{e['lottery']}|{e['date']}"].add(date_str)
 
-        for lot_key in LOTTERY_ORDER:
-            lottery = day.get(lot_key)
-            if not lottery:
-                continue
-            prizes = lottery.get("prizes", {})
-            for tier in PRIZE_ORDER:
-                val = prizes.get(tier)
-                if not val:
-                    continue
-                nums_in_prize = [val] if isinstance(val, str) else val
-                for num in nums_in_prize:
-                    if num not in num_index:
-                        continue
-                    for e in num_index[num]:
-                        if date_str < e["date"]:
-                            continue
-                        if e["lottery"] != "all" and lot_key != e["lottery"]:
-                            continue
-                        results[f"{num}|{e['lottery']}|{e['date']}"]["wins"].append({
-                            "date":     date_str,
-                            "date_fmt": datetime.strptime(date_str, "%Y-%m-%d").strftime("%a, %d %b %Y"),
-                            "lottery":  lottery.get("label", lot_key.upper()),
-                            "prize":    PRIZE_LABEL[tier],
-                            "tier":     tier,
-                        })
+        for w in _scan_user_wins(entries, {date_str: day}):
+            results[w["key"]]["wins"].append({
+                "date":     w["date"],
+                "date_fmt": w["date_fmt"],
+                "lottery":  w["lottery"],
+                "prize":    w["prize"],
+                "tier":     w["tier"],
+            })
 
     for key in results:
         results[key]["draws_checked"] = len(draw_dates[key])

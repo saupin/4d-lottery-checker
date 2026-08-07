@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}4D Lottery — My Wins{% endblock %}
+
+{% block header %}
+  <h1>&#127942; My Wins</h1>
+  <p>Every prize your tracked numbers have hit since you started tracking them.</p>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4 justify-content-center">
+  <div class="col-lg-8">
+
+    {% if groups %}
+    <div class="section-card">
+      <div class="section-title">&#128202; Summary</div>
+      <p class="section-sub" style="margin-bottom:0">
+        <strong style="color:var(--gold)">{{ total_wins }}</strong> win{{ "s" if total_wins != 1 }}
+        across <strong style="color:var(--gold)">{{ winning_nums }}</strong>
+        of {{ groups|length }} tracked number{{ "s" if groups|length != 1 }}.
+      </p>
+    </div>
+
+    {% for g in groups %}
+    <div class="section-card">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+        <div class="section-title mb-0">
+          <span style="font-family:monospace;font-size:1.15rem">{{ g.num }}</span>
+          <span style="color:var(--text-dim);font-size:.78rem;font-weight:400">
+            &nbsp;{{ g.lot_label }} &middot; tracking since {{ g.since_fmt }}
+          </span>
+        </div>
+        {% if g.win_count %}
+        <span class="prize-badge" style="background:rgba(245,197,24,.15);color:var(--gold);border:1px solid var(--gold)">
+          {{ g.win_count }} win{{ "s" if g.win_count != 1 }}
+        </span>
+        {% else %}
+        <span style="color:var(--text-faint);font-size:.78rem">No wins yet</span>
+        {% endif %}
+      </div>
+
+      {% if g.wins %}
+      <div style="overflow-x:auto">
+        <table class="table draw-table mb-0">
+          <thead>
+            <tr><th>Date</th><th>Lottery</th><th>Prize</th></tr>
+          </thead>
+          <tbody>
+            {% for w in g.wins %}
+            <tr>
+              <td style="white-space:nowrap">{{ w.date_fmt }}</td>
+              <td>{{ w.lottery }}</td>
+              <td><span class="prize-badge prize-{{ w.tier }}">{{ w.prize }}</span></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div class="section-card">
+      <div class="no-match">
+        <div class="icon">&#127919;</div>
+        <p>You're not tracking any numbers yet.</p>
+        <p style="font-size:.85rem">
+          Add some on the <a href="/simulate" style="color:var(--gold)">Simulation</a> page
+          or from any result's <strong>+ Track</strong> button, and your wins will show up here.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
